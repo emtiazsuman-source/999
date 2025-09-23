@@ -239,6 +239,7 @@
             if (size === '3xl') sizeClass = 'max-w-3xl';
             if (size === '4xl') sizeClass = 'max-w-4xl';
             if (size === '5xl') sizeClass = 'max-w-5xl';
+            if (size === '7xl') sizeClass = 'max-w-7xl';
 
 
             const modalHTML = `
@@ -248,7 +249,7 @@
                             <h2 class="text-xl font-semibold text-gray-800">${title}</h2>
                             <button class="close-button text-gray-400 hover:text-gray-700 text-2xl font-bold">&times;</button>
                         </header>
-                        <div class="p-5 overflow-y-auto no-scrollbar">${content}</div>
+                        <div class="p-5 overflow-y-auto no-scrollbar bg-slate-50">${content}</div>
                     </div>
                 </div>
             `;
@@ -1535,7 +1536,7 @@
                         }
 
                         playersHTML += `
-                            <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg flex flex-col gap-2">
+                            <div class="bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-2 shadow-sm">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="flex-1">
                                         <p class="font-semibold text-gray-800"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalues='${idValuesString}'>${player.fullName}</span></p>
@@ -1592,53 +1593,49 @@
                     const closeBtnEl = prizesHeaderEl.querySelector('.close-button');
                     prizesHeaderEl.insertBefore(userIdBtn, closeBtnEl || null);
 
+                    // NEW GRID LAYOUT LOGIC
                     userIdBtn.addEventListener('click', () => {
                         const nameLinks = Array.from(document.querySelectorAll('#managePrizesModal .user-name-link'));
                         if (!nameLinks.length) return;
-                        
-                        const allIdKeys = new Set();
-                        nameLinks.forEach(el => {
-                            const ids = JSON.parse(el.dataset.idvalues || '{}');
-                            Object.keys(ids).forEach(key => allIdKeys.add(key));
-                        });
-                        const idKeyArray = Array.from(allIdKeys);
 
-                        let tableHTML = `<table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-100"><tr><th class="px-4 py-2">#</th><th class="px-4 py-2">নাম</th>`;
-                        idKeyArray.forEach(key => {
-                            tableHTML += `<th class="px-4 py-2">${key}</th>`;
-                        });
-                        tableHTML += `</tr></thead><tbody>`;
-
+                        let gridHTML = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">';
                         let plainTextList = '';
 
                         nameLinks.forEach((el, i) => {
                             const name = (el.textContent || '').trim() || 'Unknown';
                             const ids = JSON.parse(el.dataset.idvalues || '{}');
                             
-                            tableHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-4 py-2 font-medium">${i + 1}.</td><td class="px-4 py-2 font-semibold text-gray-800">${name}</td>`;
-                            let plainTextIds = [];
-                            idKeyArray.forEach(key => {
-                                const value = ids[key] || '—';
-                                tableHTML += `<td class="px-4 py-2 font-mono">${value}</td>`;
-                                if (value !== '—') {
-                                    plainTextIds.push(`${key}: ${value}`);
-                                }
-                            });
-                            tableHTML += `</tr>`;
-                            plainTextList += `${i + 1}. ${name}\n   ${plainTextIds.join('\n   ')}\n\n`;
+                            const idValuesHTML = Object.entries(ids)
+                                .map(([key, val]) => `<p class="font-mono text-blue-700 text-sm break-all">${val}</p>`)
+                                .join('');
+
+                            gridHTML += `
+                                <div class="border rounded-lg p-3 bg-white shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-3">
+                                        <span class="flex-shrink-0 font-bold text-lg text-gray-400 w-8 text-center">${i + 1}.</span>
+                                        <h3 class="font-semibold text-base text-gray-900 truncate">${name}</h3>
+                                    </div>
+                                    <div class="pl-11 mt-2 pt-2 border-t border-slate-200 space-y-1">
+                                        ${idValuesHTML || '<p class="text-xs text-gray-400">No info.</p>'}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            const plainTextIds = Object.entries(ids).map(([key, val]) => `- ${val} (${key})`);
+                            plainTextList += `${i + 1}. ${name}\n${plainTextIds.join('\n')}\n\n`;
                         });
-                        tableHTML += `</tbody></table>`;
+                        gridHTML += '</div>';
 
                         const body = `
                             <div class="space-y-4">
-                                <div class="max-h-[60vh] overflow-y-auto border rounded-lg">${tableHTML}</div>
-                                <div class="flex gap-2">
+                                <div>${gridHTML}</div>
+                                <div class="flex gap-2 pt-4 border-t">
                                     <button id="copy-userid-list" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
                                         <i class="fas fa-copy"></i> তালিকা কপি করুন
                                     </button>
                                 </div>
                             </div>`;
-                        renderModal('userIdListModal', 'খেলোয়াড় এবং আইডি তালিকা', body, { size: '5xl' });
+                        renderModal('userIdListModal', 'খেলোয়াড় এবং আইডি তালিকা', body, { size: '4xl' });
                         
                         setTimeout(() => {
                             const copyBtn = document.getElementById('copy-userid-list');
