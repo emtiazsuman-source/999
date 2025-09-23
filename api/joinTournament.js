@@ -43,7 +43,8 @@ export default async function handler(req, res) {
     const decoded = await admin.auth().verifyIdToken(token);
     const uid = decoded.uid;
 
-    const { postId, idValue, joinData, note, screenshotUrl } = req.body || {};
+    // *** পরিবর্তন: idValue এর পরিবর্তে idValues ব্যবহার করা হয়েছে ***
+    const { postId, idValues, note, screenshotUrl } = req.body || {};
 
     const appId = process.env.APP_ID;
     if (!appId) {
@@ -78,7 +79,8 @@ export default async function handler(req, res) {
     }
 
     // POST fallback: submit proof (when frontend cannot use PATCH)
-    if (req.method === 'POST' && postId && !idValue && (typeof note === 'string' || typeof screenshotUrl === 'string')) {
+    // *** পরিবর্তন: idValue এর চেকটি সরানো হয়েছে ***
+    if (req.method === 'POST' && postId && !idValues && (typeof note === 'string' || typeof screenshotUrl === 'string')) {
       const [postSnap, participantSnap] = await Promise.all([
         postRef.get(),
         participantRef.get(),
@@ -98,8 +100,9 @@ export default async function handler(req, res) {
     }
 
     // POST: join tournament
-    if (!postId) {
-      return res.status(400).json({ message: 'postId দিন।' });
+    // *** পরিবর্তন: idValues অবজেক্ট এর জন্য ভ্যালিডেশন আপডেট করা হয়েছে ***
+    if (!postId || !idValues || typeof idValues !== 'object' || Object.keys(idValues).length === 0) {
+      return res.status(400).json({ message: 'postId এবং প্রয়োজনীয় তথ্য সঠিকভাবে দিন।' });
     }
 
     // Read required docs
@@ -141,9 +144,7 @@ export default async function handler(req, res) {
     if (maxPlayers > 0 && currentCount >= maxPlayers) {
       return res.status(400).json({ message: 'টুর্নামেন্ট পূর্ণ।' });
     }
-    
-    // ✅ **সংশোধন #১:** এখানে <= 0 থেকে < 0 করা হয়েছে
-    if (!Number.isFinite(entryFee) || entryFee < 0) {
+    if (!Number.isFinite(entryFee) || entryFee <= 0) {
       return res.status(400).json({ message: 'অবৈধ এন্ট্রি ফি।' });
     }
 
@@ -164,11 +165,8 @@ export default async function handler(req, res) {
       if (p.status !== 'active') {
         throw new Error('এই টুর্নামেন্টটি বর্তমানে সক্রিয় নয়।');
       }
-      
       const fee = Number(cd.entryFee || 0);
-      
-      // ✅ **সংশোধন #২:** এখানেও <= 0 থেকে < 0 করা হয়েছে
-      if (!Number.isFinite(fee) || fee < 0) {
+      if (!Number.isFinite(fee) || fee <= 0) {
         throw new Error('অবৈধ এন্ট্রি ফি।');
       }
 
@@ -177,59 +175,8 @@ export default async function handler(req, res) {
         throw new Error('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।');
       }
 
-      // Deduct balance only if fee is greater than 0
-      if (fee > 0) {
-        tx.update(userRef, { balance: balance - fee });
-      }
-
-      // Validate dynamic join fields if present
-      let finalIdValue = (typeof idValue === 'string') ? idValue : undefined;
-      let cleanedJoinData = undefined;
-      try {
-        const jf = Array.isArray(cd.joinFields) ? cd.joinFields : [];
-        if (jf.length) {
-          cleanedJoinData = {};
-          for (const f of jf) {
-            const key = (f?.key || '').toString();
-            if (!key) continue;
-            const rawVal = joinData && typeof joinData === 'object' ? joinData[key] : undefined;
-            if (f?.required === true && (rawVal === undefined || rawVal === null || String(rawVal).trim() === '')) {
-              throw new Error(`'${f.label || key}' ফিল্ডটি আবশ্যক।`);
-            }
-            if (rawVal !== undefined) {
-              if ((f?.type || 'text') === 'number') {
-                const num = Number(rawVal);
-                if (!Number.isFinite(num)) {
-                  throw new Error(`'${f.label || key}' সঠিক সংখ্যা দিন।`);
-                }
-                cleanedJoinData[key] = num;
-              } else {
-                cleanedJoinData[key] = String(rawVal);
-              }
-            }
-          }
-          // Derive idValue if not provided
-          if (!finalIdValue) {
-            // Prefer a field named like 'ff_id' or 'player_id' else first non-empty string/number
-            const prefKeys = ['ff_id','player_id','game_id','id','ign','name'];
-            let derived;
-            for (const k of prefKeys) {
-              if (cleanedJoinData[k] !== undefined && cleanedJoinData[k] !== null && String(cleanedJoinData[k]).trim() !== '') { derived = cleanedJoinData[k]; break; }
-            }
-            if (derived === undefined) {
-              const firstKey = Object.keys(cleanedJoinData)[0];
-              if (firstKey) derived = cleanedJoinData[firstKey];
-            }
-            if (derived !== undefined) finalIdValue = String(derived);
-          }
-        }
-      } catch (ve) {
-        throw ve;
-      }
-
-      if (!finalIdValue || typeof finalIdValue !== 'string') {
-        throw new Error('idValue অনুপস্থিত বা অবৈধ।');
-      }
+      // Deduct balance and add participant
+      tx.update(userRef, { balance: balance - fee });
 
       // Add user transaction entry for tournament join
       const userTxRef = userRef.collection('transactions').doc();
@@ -243,14 +190,14 @@ export default async function handler(req, res) {
         transactionId: generateTransactionId(),
         metadata: { postId, contestName: cd.contestName || null }
       });
-
+      
+      // *** পরিবর্তন: idValue এর পরিবর্তে idValues অবজেক্ট সেভ করা হয়েছে ***
       tx.set(participantRef, {
         userId: uid,
-        idValue: String(finalIdValue),
-        fullName: u.fullName || 'User',
+        idValues: idValues,
+        fullName: u.fullName || u.name || 'User',
         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
         entryFee: fee,
-        ...(cleanedJoinData ? { joinData: cleanedJoinData } : {}),
         // proof fields are set via PATCH/POST proof paths
       });
     });
