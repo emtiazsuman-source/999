@@ -43,8 +43,7 @@ export default async function handler(req, res) {
     const decoded = await admin.auth().verifyIdToken(token);
     const uid = decoded.uid;
 
-    // *** পরিবর্তন: idValue এর পরিবর্তে idValues ব্যবহার করা হয়েছে ***
-    const { postId, idValues, note, screenshotUrl } = req.body || {};
+    const { postId, idValues, note, screenshotUrl } = req.body || {}; // ✅ **পরিবর্তন #১:** 'idValue' পরিবর্তন করে 'idValues' করা হয়েছে
 
     const appId = process.env.APP_ID;
     if (!appId) {
@@ -79,7 +78,6 @@ export default async function handler(req, res) {
     }
 
     // POST fallback: submit proof (when frontend cannot use PATCH)
-    // *** পরিবর্তন: idValue এর চেকটি সরানো হয়েছে ***
     if (req.method === 'POST' && postId && !idValues && (typeof note === 'string' || typeof screenshotUrl === 'string')) {
       const [postSnap, participantSnap] = await Promise.all([
         postRef.get(),
@@ -100,10 +98,17 @@ export default async function handler(req, res) {
     }
 
     // POST: join tournament
-    // *** পরিবর্তন: idValues অবজেক্ট এর জন্য ভ্যালিডেশন আপডেট করা হয়েছে ***
+    // ✅ **পরিবর্তন #২:** ভ্যালিডেশন 'idValue' থেকে 'idValues' এর জন্য আপডেট করা হয়েছে
     if (!postId || !idValues || typeof idValues !== 'object' || Object.keys(idValues).length === 0) {
-      return res.status(400).json({ message: 'postId এবং প্রয়োজনীয় তথ্য সঠিকভাবে দিন।' });
+      return res.status(400).json({ message: ' postId এবং প্রয়োজনীয় সকল আইডি সঠিকভাবে দিন।' });
     }
+     // Check if any of the idValues are empty
+    for (const key in idValues) {
+        if (typeof idValues[key] !== 'string' || !idValues[key].trim()) {
+            return res.status(400).json({ message: `অনুগ্রহ করে '${key}' সঠিকভাবে পূরণ করুন।` });
+        }
+    }
+
 
     // Read required docs
     const [userSnap, postSnap, existingParticipantSnap, participantsSnap] = await Promise.all([
@@ -144,7 +149,8 @@ export default async function handler(req, res) {
     if (maxPlayers > 0 && currentCount >= maxPlayers) {
       return res.status(400).json({ message: 'টুর্নামেন্ট পূর্ণ।' });
     }
-    if (!Number.isFinite(entryFee) || entryFee <= 0) {
+    
+    if (!Number.isFinite(entryFee) || entryFee < 0) {
       return res.status(400).json({ message: 'অবৈধ এন্ট্রি ফি।' });
     }
 
@@ -165,8 +171,10 @@ export default async function handler(req, res) {
       if (p.status !== 'active') {
         throw new Error('এই টুর্নামেন্টটি বর্তমানে সক্রিয় নয়।');
       }
+      
       const fee = Number(cd.entryFee || 0);
-      if (!Number.isFinite(fee) || fee <= 0) {
+      
+      if (!Number.isFinite(fee) || fee < 0) {
         throw new Error('অবৈধ এন্ট্রি ফি।');
       }
 
@@ -175,8 +183,10 @@ export default async function handler(req, res) {
         throw new Error('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।');
       }
 
-      // Deduct balance and add participant
-      tx.update(userRef, { balance: balance - fee });
+      // Deduct balance only if fee is greater than 0
+      if (fee > 0) {
+        tx.update(userRef, { balance: balance - fee });
+      }
 
       // Add user transaction entry for tournament join
       const userTxRef = userRef.collection('transactions').doc();
@@ -190,12 +200,12 @@ export default async function handler(req, res) {
         transactionId: generateTransactionId(),
         metadata: { postId, contestName: cd.contestName || null }
       });
-      
-      // *** পরিবর্তন: idValue এর পরিবর্তে idValues অবজেক্ট সেভ করা হয়েছে ***
+
+      // ✅ **পরিবর্তন #৩:** এখানে 'idValue' এর পরিবর্তে 'idValues' অবজেক্ট সেভ করা হচ্ছে
       tx.set(participantRef, {
         userId: uid,
-        idValues: idValues,
-        fullName: u.fullName || u.name || 'User',
+        idValues: idValues, // Save the entire object of IDs
+        fullName: u.fullName || 'User',
         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
         entryFee: fee,
         // proof fields are set via PATCH/POST proof paths
