@@ -1,0 +1,76 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/signup.html"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/forgot-password.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/admin-t",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cashpoint",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/cashpoint/",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/add-money",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/transfer-money",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/send-money",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/pin-setup",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/pin-create",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/pin-change",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/pin-forgot",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/myprofile",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/statement",
+      "destination": "/cashpoint.html"
+    },
+    {
+      "source": "/:path((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
