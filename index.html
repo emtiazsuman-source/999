@@ -302,14 +302,28 @@
                         } else {
                             roleSwitchEl.classList.add('hidden');
                         }
+                        
                         // Admin-specific visibility only on admin route
                         const isAdminRoute = window.location.pathname === '/admin-t';
+                        const appWrapper = document.getElementById('app-wrapper');
+
                         if (isAdminUser && isAdminRoute) {
                             adminPostSectionEl.classList.remove('hidden');
                             renderAdminControls();
+                            // *** NEW: Widen layout for admin on PC ***
+                            if (appWrapper) {
+                                appWrapper.classList.remove('max-w-sm');
+                                appWrapper.classList.add('sm:max-w-5xl');
+                            }
                         } else {
                             adminPostSectionEl.classList.add('hidden');
+                             // *** NEW: Revert to narrow layout for non-admins or other pages ***
+                            if (appWrapper) {
+                                appWrapper.classList.add('max-w-sm');
+                                appWrapper.classList.remove('sm:max-w-5xl');
+                            }
                         }
+                        
                         // If user opened the dedicated tournament admin route, enforce access
                         if (window.location.pathname === '/admin-t') {
                             if (isAdminUser) {
