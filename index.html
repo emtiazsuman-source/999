@@ -812,9 +812,7 @@
                 ? `<p class="text-xs text-center text-red-600">আপনার ওয়ালেট থেকে ৳${fee} কেটে নেওয়া হবে।</p>` 
                 : '';
 
-            // ✅ **পরিবর্তন #১:** একটির বদলে একাধিক আইডি ইনপুট বক্স তৈরি করা হচ্ছে
             let idInputsHTML = '';
-            // backward compatibility এর জন্য পুরনো requiredIdType স্ট্রিং এবং নতুন requiredIdTypes অ্যারে উভয়ই সাপোর্ট করবে
             const requiredIdTypes = Array.isArray(contestDetails.requiredIdTypes) && contestDetails.requiredIdTypes.length > 0 
                 ? contestDetails.requiredIdTypes 
                 : [contestDetails.requiredIdType || 'Game ID'];
@@ -846,7 +844,6 @@
             postElement.dataset.confirmMode = 'true';
 
             const confirmHandler = () => {
-                // ✅ **পরিবর্তন #২:** সব আইডি ইনপুট থেকে ডেটা সংগ্রহ করা হচ্ছে
                 const idInputs = document.querySelectorAll(`#join-form-${post.id} input[data-id-type]`);
                 const idValues = {};
                 let allValid = true;
@@ -876,7 +873,6 @@
         };
 
         const handleJoinContest = async (post, idValues) => {
-            // ✅ **পরিবর্তন #৩:** idValue এর পরিবর্তে idValues অবজেক্ট পাঠানো হচ্ছে
             if (!idValues || Object.keys(idValues).length === 0) return showMessage('অনুগ্রহ করে প্রয়োজনীয় আইডি লিখুন।', 'error');
             const postId = post.id;
             try {
@@ -1518,7 +1514,7 @@
                 let playersHTML = '';
                 if (!participantsSnapshot.empty) {
                     playersHTML = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
-                    participantsSnapshot.docs.forEach(doc => {
+                    participantsSnapshot.docs.forEach((doc, index) => {
                         const player = doc.data();
                         const savedPrize = pendingPrizes[doc.id] || '';
                         const savedNote = pendingNotes[doc.id] || '';
@@ -1529,18 +1525,21 @@
                         let idDisplayHTML = '';
                         if (player.idValues && typeof player.idValues === 'object') {
                             idDisplayHTML = Object.entries(player.idValues).map(([key, value]) => 
-                                `<p class="text-xs text-gray-500"><span class="font-semibold">${key}:</span> ${value}</p>`
+                                `<p class="text-sm font-semibold text-gray-700 font-mono break-all">${value}</p>`
                             ).join('');
                         } else if (player.idValue) {
-                             idDisplayHTML = `<p class="text-xs text-gray-500">ID: ${player.idValue}</p>`;
+                             idDisplayHTML = `<p class="text-sm font-semibold text-gray-700 font-mono break-all">${player.idValue}</p>`;
                         }
 
                         playersHTML += `
                             <div class="bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-2 shadow-sm">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="flex-1">
-                                        <p class="font-semibold text-gray-800"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalues='${idValuesString}'>${player.fullName}</span></p>
-                                        <div class="mt-1">${idDisplayHTML}</div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="font-bold text-lg text-slate-400">${index + 1}.</span>
+                                            <p class="font-semibold text-gray-800"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalues='${idValuesString}'>${player.fullName}</span></p>
+                                        </div>
+                                        <div class="mt-1 pl-8 space-y-1">${idDisplayHTML}</div>
                                     </div>
                                     <div class="flex-shrink-0">
                                         <button 
@@ -1593,7 +1592,6 @@
                     const closeBtnEl = prizesHeaderEl.querySelector('.close-button');
                     prizesHeaderEl.insertBefore(userIdBtn, closeBtnEl || null);
 
-                    // NEW GRID LAYOUT LOGIC
                     userIdBtn.addEventListener('click', () => {
                         const nameLinks = Array.from(document.querySelectorAll('#managePrizesModal .user-name-link'));
                         if (!nameLinks.length) return;
