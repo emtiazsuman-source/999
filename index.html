@@ -769,29 +769,21 @@
                 ? `<p class="text-xs text-center text-red-600">আপনার ওয়ালেট থেকে ৳${fee} কেটে নেওয়া হবে।</p>` 
                 : '';
 
-            // Dynamic join fields (fallback to single id field if not provided by admin)
-            const joinFields = Array.isArray(contestDetails.joinFields) ? contestDetails.joinFields : null;
-            let fieldsHTML = '';
-            if (joinFields && joinFields.length) {
-                fieldsHTML = joinFields.map((f, idx) => {
-                    const key = (f.key || `field_${idx}`).replace(/[^a-zA-Z0-9_\-]/g, '_');
-                    const label = (f.label || `Field ${idx + 1}`).toString();
-                    const placeholder = (f.placeholder || label).toString();
-                    const type = (f.type || 'text');
-                    const required = f.required === true ? 'required' : '';
-                    return `
-                        <div class="flex flex-col">
-                            <label class="text-xs text-gray-600 mb-1">${label}${required ? ' <span class="text-red-500">*</span>' : ''}</label>
-                            <input type="${type}" data-join-key="${key}" ${required} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="${placeholder}">
-                        </div>`;
-                }).join('');
-            } else {
-                fieldsHTML = `
-                    <input type="text" id="user-id-input-${post.id}" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="আপনার ${contestDetails.requiredIdType} দিন">`;
-            }
+            // ✅ **পরিবর্তন #১:** একটির বদলে একাধিক আইডি ইনপুট বক্স তৈরি করা হচ্ছে
+            let idInputsHTML = '';
+            // backward compatibility এর জন্য পুরনো requiredIdType স্ট্রিং এবং নতুন requiredIdTypes অ্যারে উভয়ই সাপোর্ট করবে
+            const requiredIdTypes = Array.isArray(contestDetails.requiredIdTypes) && contestDetails.requiredIdTypes.length > 0 
+                ? contestDetails.requiredIdTypes 
+                : [contestDetails.requiredIdType || 'Game ID'];
+
+            requiredIdTypes.forEach(type => {
+                if(type && type.trim()){
+                    idInputsHTML += `<input type="text" data-id-type="${type}" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="আপনার ${type} দিন">`;
+                }
+            });
 
             formBlock.innerHTML = `
-                <div class="space-y-2">${fieldsHTML}</div>
+                ${idInputsHTML}
                 ${feeMessageHTML}
             `;
             progressRow.parentElement.insertBefore(formBlock, progressRow);
@@ -811,19 +803,22 @@
             postElement.dataset.confirmMode = 'true';
 
             const confirmHandler = () => {
-                // Build joinData if dynamic fields exist, else fallback
-                const inputs = formBlock.querySelectorAll('[data-join-key]');
-                let joinData = null;
-                if (inputs && inputs.length) {
-                    joinData = {};
-                    inputs.forEach(inp => {
-                        const k = inp.getAttribute('data-join-key');
-                        joinData[k] = inp.value || '';
-                    });
+                // ✅ **পরিবর্তন #২:** সব আইডি ইনপুট থেকে ডেটা সংগ্রহ করা হচ্ছে
+                const idInputs = document.querySelectorAll(`#join-form-${post.id} input[data-id-type]`);
+                const idValues = {};
+                let allValid = true;
+                idInputs.forEach(input => {
+                    const type = input.dataset.idType;
+                    const value = input.value.trim();
+                    if (!value) {
+                        showMessage(`অনুগ্রহ করে আপনার ${type} লিখুন।`, 'error');
+                        allValid = false;
+                    }
+                    idValues[type] = value;
+                });
+                if(allValid) {
+                    handleJoinContest(post, idValues);
                 }
-                const idInput = document.getElementById(`user-id-input-${post.id}`);
-                const idValue = idInput ? idInput.value : (joinData ? Object.values(joinData)[0] || '' : '');
-                handleJoinContest(post, idValue, joinData);
             };
             joinBtn.addEventListener('click', confirmHandler, { once: true });
 
@@ -837,8 +832,9 @@
             cancelBtn.addEventListener('click', cancelHandler, { once: true });
         };
 
-        const handleJoinContest = async (post, idValue, joinData = null) => {
-            if (!idValue.trim() && (!joinData || Object.keys(joinData).length === 0)) return showMessage('অনুগ্রহ করে প্রয়োজনীয় তথ্য দিন।', 'error');
+        const handleJoinContest = async (post, idValues) => {
+            // ✅ **পরিবর্তন #৩:** idValue এর পরিবর্তে idValues অবজেক্ট পাঠানো হচ্ছে
+            if (!idValues || Object.keys(idValues).length === 0) return showMessage('অনুগ্রহ করে প্রয়োজনীয় আইডি লিখুন।', 'error');
             const postId = post.id;
             try {
                 loadingEl.classList.remove('hidden');
@@ -846,7 +842,7 @@
                 const resp = await fetch('/api/joinTournament', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ postId, idValue, joinData })
+                    body: JSON.stringify({ postId, idValues })
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Join failed');
@@ -1081,6 +1077,24 @@
                     </div>`;
             });
 
+            // ✅ **পরিবর্তন #৪:** একাধিক Required ID Type এর জন্য HTML তৈরি করা
+            let idFieldsHTML = '';
+            // backward compatibility: পুরনো `requiredIdType` বা নতুন `requiredIdTypes` উভয়ই চেক করা হচ্ছে
+            const idTypes = Array.isArray(d.requiredIdTypes) && d.requiredIdTypes.length > 0
+                ? d.requiredIdTypes
+                : (d.requiredIdType ? [d.requiredIdType] : ['']);
+            
+            idTypes.forEach((type, index) => {
+                if (typeof type === 'string') {
+                    idFieldsHTML += `
+                    <div class="flex items-center space-x-2">
+                        <input type="text" name="requiredIdType_${index}" placeholder="যেমন: Free Fire ID" class="flex-grow px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${type || ''}" required>
+                        <button type="button" class="remove-id-type-btn ${index === 0 ? 'hidden' : ''} bg-red-500 text-white w-8 h-8 rounded-full flex-shrink-0">&times;</button>
+                    </div>`;
+                }
+            });
+
+
             return `
                 <form id="${formId}" class="space-y-4">
                     <div class="grid grid-cols-2 gap-3">
@@ -1124,77 +1138,39 @@
                             <label class="text-xs text-gray-600 mb-1">VERSION (ভার্সন)</label>
                             <input type="text" name="version" placeholder="যেমন: MOBILE" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.version || ''}">
                         </div>
+                         <div class="flex flex-col">
+                            <label class="text-xs text-gray-600 mb-1">ENTRY TYPE (ধরণ) <span class="text-red-500">*</span></label>
+                            <input type="text" name="contestType" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="যেমন: 1v1, 2v2" value="${d.contestType || ''}">
+                        </div>
                         <div class="flex flex-col col-span-2">
                             <label class="text-xs text-gray-600 mb-1">শুরুর সময় (Start Time) <span class="text-red-500">*</span></label>
                             <input type="datetime-local" name="startTime" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.startTime || ''}">
                         </div>
-                        <div class="flex flex-col">
-                            <label class="text-xs text-gray-600 mb-1">প্রয়োজনীয় আইডি টাইপ (Required ID Type) <span class="text-red-500">*</span></label>
-                            <input type="text" name="requiredIdType" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="যেমন: Free Fire ID" value="${d.requiredIdType || ''}">
-                        </div>
-                        <div class="flex flex-col">
-                            <label class="text-xs text-gray-600 mb-1">ENTRY TYPE (ধরণ) <span class="text-red-500">*</span></label>
-                            <input type="text" name="contestType" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="যেমন: 1v1, 2v2" value="${d.contestType || ''}">
-                        </div>
-                        <div class="col-span-2 mt-2">
-                            <h4 class="text-sm font-semibold text-gray-700 mb-1">Room Details</h4>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="flex flex-col">
-                                    <label class="text-xs text-gray-600 mb-1">Room ID</label>
-                                    <input type="text" name="roomId" placeholder="রুম আইডি" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.roomId || ''}">
-                                </div>
-                                <div class="flex flex-col">
-                                    <label class="text-xs text-gray-600 mb-1">Password</label>
-                                    <input type="text" name="roomPass" placeholder="রুম পাসওয়ার্ড" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.roomPass || ''}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex flex-col col-span-2">
-                            <label class="text-xs text-gray-600 mb-1">স্ট্যাটাস (Status) <span class="text-red-500">*</span></label>
-                            <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                <option value="active" ${d.status === 'active' ? 'selected' : ''}>Active</option>
-                                <option value="inactive" ${d.status === 'inactive' ? 'selected' : ''}>Inactive</option>
-                                <option value="complete" ${d.status === 'complete' ? 'selected' : ''}>Complete</option>
-                            </select>
-                        </div>
                     </div>
                     
-                    <div class="mt-2">
-                        <h4 class="text-md font-semibold text-gray-700 mb-1">Join Fields (ব্যবহারকারী যে তথ্য দেবে)</h4>
-                        <div id="join-fields-container" class="space-y-2">
-                            ${(Array.isArray(d.joinFields) ? d.joinFields : []).map((f, i) => `
-                                <div data-join-field-item class="p-2 border rounded-md bg-slate-50 grid grid-cols-5 gap-2 items-end">
-                                    <div class="col-span-2">
-                                        <label class="text-[11px] text-gray-600">Label</label>
-                                        <input type="text" class="w-full px-2 py-1 border rounded" name="join_label_${i}" value="${(f.label||'')}">
-                                    </div>
-                                    <div>
-                                        <label class="text-[11px] text-gray-600">Key</label>
-                                        <input type="text" class="w-full px-2 py-1 border rounded" name="join_key_${i}" value="${(f.key||'')}">
-                                    </div>
-                                    <div>
-                                        <label class="text-[11px] text-gray-600">Type</label>
-                                        <select class="w-full px-2 py-1 border rounded" name="join_type_${i}">
-                                            <option value="text" ${(f.type||'text')==='text'?'selected':''}>Text</option>
-                                            <option value="number" ${(f.type||'text')==='number'?'selected':''}>Number</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <label class="text-[11px] text-gray-600">Required</label>
-                                        <input type="checkbox" name="join_required_${i}" ${f.required ? 'checked' : ''} class="mt-1">
-                                    </div>
-                                    <div class="col-span-5">
-                                        <label class="text-[11px] text-gray-600">Placeholder</label>
-                                        <input type="text" class="w-full px-2 py-1 border rounded" name="join_placeholder_${i}" value="${(f.placeholder||'')}">
-                                    </div>
-                                    <button type="button" class="remove-join-field-btn col-span-5 bg-red-500 text-white text-xs px-2 py-1 rounded">Remove</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <button type="button" id="add-join-field-btn" class="mt-2 text-sm text-blue-600 hover:underline font-semibold">+ নতুন ফিল্ড যোগ করুন</button>
-                        <p class="text-[11px] text-gray-500 mt-1">এখানে যে ফিল্ডগুলো সেট করবেন, ইউজার জয়েন করার সময় এগুলো পূরণ করবে।</p>
+                    <div class="mt-4">
+                        <h4 class="text-md font-semibold text-gray-600 mb-1">প্রয়োজনীয় আইডি (Required IDs)</h4>
+                        <div id="required-id-list-container" class="space-y-2">${idFieldsHTML}</div>
+                        <button type="button" id="add-id-type-btn" class="mt-2 text-sm text-blue-600 hover:underline font-semibold">+ আরও আইডি যোগ করুন</button>
                     </div>
 
+                    <div class="mt-4">
+                        <h4 class="text-md font-semibold text-gray-600 mb-1">Room Details</h4>
+                         <div class="grid grid-cols-2 gap-3">
+                            <input type="text" name="roomId" placeholder="রুম আইডি" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.roomId || ''}">
+                            <input type="text" name="roomPass" placeholder="রুম পাসওয়ার্ড" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${d.roomPass || ''}">
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                         <label class="text-xs text-gray-600 mb-1">স্ট্যাটাস (Status) <span class="text-red-500">*</span></label>
+                         <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="active" ${d.status === 'active' ? 'selected' : ''}>Active</option>
+                            <option value="inactive" ${d.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                            <option value="complete" ${d.status === 'complete' ? 'selected' : ''}>Complete</option>
+                        </select>
+                    </div>
+                    
                     <div class="mt-4">
                         <h4 class="text-md font-semibold text-gray-600 mb-1">Total Prize Details (পুরস্কারের তালিকা)</h4>
                         <div id="prize-list-container" class="space-y-2">${prizeFieldsHTML}</div>
@@ -1222,53 +1198,17 @@
 
             document.getElementById('contest-post-form').onsubmit = handleContestPost;
             document.getElementById('add-prize-btn').onclick = () => addPrizeField('', '', '#createPostModal');
-            document.querySelectorAll('#createPostModal .remove-prize-btn').forEach(btn => btn.onclick = (e) => e.target.parentElement.remove());
+            document.querySelectorAll('#createPostModal .remove-prize-btn').forEach(btn => btn.onclick = (e) => e.target.closest('.flex').remove());
+            // ✅ **পরিবর্তন #৬:** নতুন আইডি যোগ এবং মোছার জন্য ইভেন্ট হ্যান্ডলার
+            document.getElementById('add-id-type-btn').onclick = () => addIdTypeField('', '#createPostModal');
+            document.querySelectorAll('#createPostModal .remove-id-type-btn').forEach(btn => btn.onclick = (e) => e.target.closest('.flex').remove());
+            
             document.getElementById('save-draft-btn').onclick = () => handleSaveDraft('#createPostModal');
             document.getElementById('load-draft-btn').onclick = () => handleLoadDraft('#createPostModal');
-
-            // Join fields handlers
-            const addJoinField = (rootSel) => {
-                const root = document.querySelector(rootSel);
-                const container = root.querySelector('#join-fields-container');
-                const idx = container.querySelectorAll('[data-join-field-item]').length;
-                const itemHTML = `
-                    <div data-join-field-item class="p-2 border rounded-md bg-slate-50 grid grid-cols-5 gap-2 items-end">
-                        <div class="col-span-2">
-                            <label class="text-[11px] text-gray-600">Label</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_label_${idx}" value="">
-                        </div>
-                        <div>
-                            <label class="text-[11px] text-gray-600">Key</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_key_${idx}" value="">
-                        </div>
-                        <div>
-                            <label class="text-[11px] text-gray-600">Type</label>
-                            <select class="w-full px-2 py-1 border rounded" name="join_type_${idx}">
-                                <option value="text" selected>Text</option>
-                                <option value="number">Number</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-[11px] text-gray-600">Required</label>
-                            <input type="checkbox" name="join_required_${idx}" class="mt-1">
-                        </div>
-                        <div class="col-span-5">
-                            <label class="text-[11px] text-gray-600">Placeholder</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_placeholder_${idx}" value="">
-                        </div>
-                        <button type="button" class="remove-join-field-btn col-span-5 bg-red-500 text-white text-xs px-2 py-1 rounded">Remove</button>
-                    </div>`;
-                container.insertAdjacentHTML('beforeend', itemHTML);
-                container.lastElementChild.querySelector('.remove-join-field-btn').onclick = (e) => e.target.closest('[data-join-field-item]').remove();
-            };
-            document.querySelector('#createPostModal #add-join-field-btn').onclick = () => addJoinField('#createPostModal');
-            document.querySelectorAll('#createPostModal .remove-join-field-btn').forEach(btn => btn.onclick = (e) => e.target.closest('[data-join-field-item]').remove());
-
-            // Live preview hooks for create modal
+            
             setupPreviewListeners('#createPostModal');
             renderPreviewFromForm('#createPostModal');
         };
-
 
         const renderPreviewFromForm = (modalSelector) => {
             const form = document.querySelector(`${modalSelector} form`);
@@ -1379,23 +1319,44 @@
             renderPreviewFromForm(modalSelector);
         };
         
+        // ✅ **পরিবর্তন #৭:** নতুন Required ID Type ফিল্ড যোগ করার জন্য ফাংশন
+        const addIdTypeField = (type = '', modalSelector) => {
+            const container = document.querySelector(`${modalSelector} #required-id-list-container`);
+            if (!container) return;
+            const index = container.children.length;
+            const idField = document.createElement('div');
+            idField.className = 'flex items-center space-x-2';
+            idField.innerHTML = `
+                <input type="text" name="requiredIdType_${index}" placeholder="যেমন: Free Fire ID" class="flex-grow px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${type}" required>
+                <button type="button" class="remove-id-type-btn ${index === 0 ? 'hidden' : ''} bg-red-500 text-white w-8 h-8 rounded-full flex-shrink-0">&times;</button>
+            `;
+            const removeBtn = idField.querySelector('.remove-id-type-btn');
+            removeBtn.onclick = () => { idField.remove(); };
+            container.appendChild(idField);
+        };
+
         const handleSaveDraft = async (modalSelector) => {
             const form = document.querySelector(`${modalSelector} form`);
             if (!form) return;
             const formData = new FormData(form);
             const draftData = {};
             const prizes = [];
+            const requiredIdTypes = []; // ✅ নতুন অ্যারে
 
             for (let [key, value] of formData.entries()) {
                 if (key.startsWith('prize_position_')) {
                     const index = key.split('_')[2];
                     const amount = formData.get(`prize_amount_${index}`);
                     prizes.push({ position: value, amount: amount });
-                } else {
+                } else if (key.startsWith('requiredIdType_')) { // ✅ আইডি টাইপ সংগ্রহ করা
+                     if(value.trim()) requiredIdTypes.push(value.trim());
+                }
+                else {
                     draftData[key] = value;
                 }
             }
             draftData.prizes = prizes;
+            draftData.requiredIdTypes = requiredIdTypes; // ✅ ড্রাফটে সেভ করা
 
             try {
                 const nameDefault = draftData.contestName ? `${draftData.contestName}` : 'Untitled Draft';
@@ -1456,10 +1417,11 @@
                         if (!form) return;
 
                         for (const key in data) {
-                            if (key !== 'prizes' && form.elements[key]) {
+                            if (key !== 'prizes' && key !== 'requiredIdTypes' && form.elements[key]) {
                                 form.elements[key].value = data[key];
                             }
                         }
+                        // ✅ পুরস্কার এবং আইডি টাইপ লোড করা
                         const prizeContainer = form.querySelector('#prize-list-container');
                         if (prizeContainer) {
                             prizeContainer.innerHTML = '';
@@ -1467,6 +1429,15 @@
                                 data.prizes.forEach(pr => addPrizeField(pr.position, pr.amount, modalSelector));
                             } else {
                                 addPrizeField('', '', modalSelector);
+                            }
+                        }
+                         const idContainer = form.querySelector('#required-id-list-container');
+                        if (idContainer) {
+                            idContainer.innerHTML = '';
+                             if (Array.isArray(data.requiredIdTypes) && data.requiredIdTypes.length > 0) {
+                                data.requiredIdTypes.forEach(type => addIdTypeField(type, modalSelector));
+                            } else {
+                                addIdTypeField(data.requiredIdType || '', modalSelector); // backward compatibility
                             }
                         }
                         
@@ -1502,6 +1473,7 @@
             const formData = new FormData(e.target);
             const contestDetails = {};
             const prizes = [];
+            const requiredIdTypes = []; // ✅ নতুন অ্যারে
             let postStatus = 'active';
             let startTime = '';
             let matchNo = undefined;
@@ -1511,7 +1483,10 @@
                     const index = key.split('_')[2];
                     const amount = formData.get(`prize_amount_${index}`);
                     prizes.push({ position: value, amount: amount });
-                } else if (key === 'status') {
+                } else if (key.startsWith('requiredIdType_')) { // ✅ আইডি টাইপ সংগ্রহ করা
+                     if(value.trim()) requiredIdTypes.push(value.trim());
+                }
+                else if (key === 'status') {
                     postStatus = value;
                 } else if (key === 'startTime') {
                     startTime = value;
@@ -1523,22 +1498,8 @@
                     contestDetails[key] = value;
                 }
             }
-            // Gather join fields from create modal DOM
-            try {
-                const root = document.querySelector('#createPostModal');
-                const items = root ? root.querySelectorAll('[data-join-field-item]') : [];
-                const joinFields = [];
-                items.forEach((el, idx) => {
-                    const label = el.querySelector(`[name="join_label_${idx}"]`)?.value || '';
-                    const key = el.querySelector(`[name="join_key_${idx}"]`)?.value || '';
-                    const type = el.querySelector(`[name="join_type_${idx}"]`)?.value || 'text';
-                    const required = el.querySelector(`[name="join_required_${idx}"]`)?.checked || false;
-                    const placeholder = el.querySelector(`[name="join_placeholder_${idx}"]`)?.value || '';
-                    if (label || key) joinFields.push({ label, key, type, required, placeholder });
-                });
-                if (joinFields.length) contestDetails.joinFields = joinFields;
-            } catch {}
             contestDetails.prizes = prizes;
+            contestDetails.requiredIdTypes = requiredIdTypes; // ✅ ডেটাতে সেভ করা
 
             loadingEl.classList.remove('hidden');
             try {
@@ -1579,17 +1540,28 @@
                 let playersHTML = '';
                 if (!participantsSnapshot.empty) {
                     playersHTML = '<div class="space-y-3">';
-                    participantsSnapshot.forEach(doc => {
+                    participantsSnapshot.docs.forEach(doc => {
                         const player = doc.data();
                         const savedPrize = pendingPrizes[doc.id] || '';
                         const savedNote = pendingNotes[doc.id] || '';
                         const hasProof = !!(player?.note) || !!(player?.screenshotUrl);
+                        
+                        // ✅ প্লেয়ারের ഒന്നിലധികം ID সুন্দরভাবে প্রদর্শন করা
+                        let idDisplayHTML = '';
+                        if (player.idValues && typeof player.idValues === 'object') {
+                            idDisplayHTML = Object.entries(player.idValues).map(([key, value]) => 
+                                `<p class="text-xs text-gray-500">${key}: ${value}</p>`
+                            ).join('');
+                        } else if (player.idValue) { // পুরনো ডেটার জন্য
+                             idDisplayHTML = `<p class="text-xs text-gray-500">ID: ${player.idValue}</p>`;
+                        }
+
                         playersHTML += `
                             <div class="bg-slate-100 p-3 rounded-lg flex flex-col gap-2">
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
-                                        <p class="font-semibold"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalue="${player.idValue}">${player.fullName}</span></p>
-                                        <p class="text-xs text-gray-500">ID: ${player.idValue}</p>
+                                        <p class="font-semibold"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalue="${player.idValue || ''}">${player.fullName}</span></p>
+                                        ${idDisplayHTML}
                                     </div>
                                     <div class="flex-shrink-0">
                                         <button 
@@ -1865,50 +1837,16 @@
 
             document.getElementById('edit-post-form').onsubmit = (e) => handleUpdatePost(e, postId);
             document.getElementById('add-prize-btn').onclick = () => addPrizeField('', '', '#editPostModal');
-            document.querySelectorAll('#editPostModal .remove-prize-btn').forEach(btn => btn.onclick = (e) => e.target.parentElement.remove());
+            document.querySelectorAll('#editPostModal .remove-prize-btn').forEach(btn => btn.onclick = (e) => e.target.closest('.flex').remove());
+             // ✅ নতুন আইডি যোগ এবং মোছার জন্য ইভেন্ট হ্যান্ডলার
+            document.getElementById('add-id-type-btn').onclick = () => addIdTypeField('', '#editPostModal');
+            document.querySelectorAll('#editPostModal .remove-id-type-btn').forEach(btn => btn.onclick = (e) => e.target.closest('.flex').remove());
+
             document.getElementById('save-draft-btn').onclick = () => handleSaveDraft('#editPostModal');
             document.getElementById('load-draft-btn').onclick = () => handleLoadDraft('#editPostModal');
 
             setupPreviewListeners('#editPostModal');
             renderPreviewFromForm('#editPostModal');
-
-            // Join fields handlers for edit
-            const addJoinField = (rootSel) => {
-                const root = document.querySelector(rootSel);
-                const container = root.querySelector('#join-fields-container');
-                const idx = container.querySelectorAll('[data-join-field-item]').length;
-                const itemHTML = `
-                    <div data-join-field-item class="p-2 border rounded-md bg-slate-50 grid grid-cols-5 gap-2 items-end">
-                        <div class="col-span-2">
-                            <label class="text-[11px] text-gray-600">Label</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_label_${idx}" value="">
-                        </div>
-                        <div>
-                            <label class="text-[11px] text-gray-600">Key</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_key_${idx}" value="">
-                        </div>
-                        <div>
-                            <label class="text-[11px] text-gray-600">Type</label>
-                            <select class="w-full px-2 py-1 border rounded" name="join_type_${idx}">
-                                <option value="text" selected>Text</option>
-                                <option value="number">Number</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-[11px] text-gray-600">Required</label>
-                            <input type="checkbox" name="join_required_${idx}" class="mt-1">
-                        </div>
-                        <div class="col-span-5">
-                            <label class="text-[11px] text-gray-600">Placeholder</label>
-                            <input type="text" class="w-full px-2 py-1 border rounded" name="join_placeholder_${idx}" value="">
-                        </div>
-                        <button type="button" class="remove-join-field-btn col-span-5 bg-red-500 text-white text-xs px-2 py-1 rounded">Remove</button>
-                    </div>`;
-                container.insertAdjacentHTML('beforeend', itemHTML);
-                container.lastElementChild.querySelector('.remove-join-field-btn').onclick = (e) => e.target.closest('[data-join-field-item]').remove();
-            };
-            document.querySelector('#editPostModal #add-join-field-btn').onclick = () => addJoinField('#editPostModal');
-            document.querySelectorAll('#editPostModal .remove-join-field-btn').forEach(btn => btn.onclick = (e) => e.target.closest('[data-join-field-item]').remove());
         };
 
         const handleUpdatePost = async (e, postId) => {
@@ -1916,6 +1854,7 @@
             const formData = new FormData(e.target);
             const updatedDetails = {};
             const prizes = [];
+            const requiredIdTypes = []; // ✅ নতুন অ্যারে
             let postStatus = 'active';
             let startTime = '';
             let matchNo = undefined;
@@ -1925,7 +1864,10 @@
                     const index = key.split('_')[2];
                     const amount = formData.get(`prize_amount_${index}`);
                     if(value && amount) prizes.push({ position: value, amount: amount });
-                } else if (key === 'status') {
+                } else if (key.startsWith('requiredIdType_')) { // ✅ আইডি টাইপ সংগ্রহ করা
+                     if(value.trim()) requiredIdTypes.push(value.trim());
+                }
+                else if (key === 'status') {
                     postStatus = value;
                 } else if (key === 'startTime') {
                     startTime = value;
@@ -1937,22 +1879,8 @@
                     updatedDetails[key] = value;
                 }
             }
-            // Gather join fields from edit modal DOM
-            try {
-                const root = document.querySelector('#editPostModal');
-                const items = root ? root.querySelectorAll('[data-join-field-item]') : [];
-                const joinFields = [];
-                items.forEach((el, idx) => {
-                    const label = el.querySelector(`[name="join_label_${idx}"]`)?.value || '';
-                    const key = el.querySelector(`[name="join_key_${idx}"]`)?.value || '';
-                    const type = el.querySelector(`[name="join_type_${idx}"]`)?.value || 'text';
-                    const required = el.querySelector(`[name="join_required_${idx}"]`)?.checked || false;
-                    const placeholder = el.querySelector(`[name="join_placeholder_${idx}"]`)?.value || '';
-                    if (label || key) joinFields.push({ label, key, type, required, placeholder });
-                });
-                if (joinFields.length) updatedDetails.joinFields = joinFields;
-            } catch {}
             updatedDetails.prizes = prizes;
+            updatedDetails.requiredIdTypes = requiredIdTypes; // ✅ ডেটাতে সেভ করা
 
             loadingEl.classList.remove('hidden');
             try {
