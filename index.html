@@ -1499,10 +1499,21 @@
             const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
             const participantsRef = collection(postRef, 'participants');
 
+            // ######## MODIFICATION START ########
+            // জয়েন করার সময় অনুযায়ী প্লেয়ারদের সর্ট করার জন্য কোয়েরি তৈরি করা হয়েছে
+            // This query sorts the participants by their joining time (oldest first).
+            // A 'joinedAt' field with a server timestamp must be saved when a user joins.
+            const participantsQuery = query(participantsRef, orderBy("joinedAt", "asc"));
+            // ######## MODIFICATION END ########
+
             try {
                 const [postDoc, participantsSnapshot] = await Promise.all([
                     getDoc(postRef),
-                    getDocs(participantsRef)
+                    // ######## MODIFICATION START ########
+                    // এখন পার্টিসিপেন্টদের তালিকা আনার জন্য সর্টেড কোয়েরিটি ব্যবহার করা হচ্ছে
+                    // Using the sorted query to fetch the list of participants
+                    getDocs(participantsQuery)
+                    // ######## MODIFICATION END ########
                 ]);
 
                 if (!postDoc.exists()) throw new Error("Tournament not found!");
