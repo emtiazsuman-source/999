@@ -155,6 +155,7 @@ export default async function handler(req, res) {
     }
 
     // Perform atomic updates
+    let assignedPosition = null;
     await db.runTransaction(async (tx) => {
       const freshUser = await tx.get(userRef);
       const freshPost = await tx.get(postRef);
@@ -183,6 +184,18 @@ export default async function handler(req, res) {
         throw new Error('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।');
       }
 
+      // Enforce capacity and compute sequential position inside the transaction
+      const participantsCollPath = `artifacts/${appId}/public/data/posts/${postId}/participants`;
+      const participantsColl = db.collection(participantsCollPath);
+      const participantsSnapTx = await tx.get(participantsColl);
+      const currentCountTx = participantsSnapTx.size;
+      const maxPlayersTx = Number(cd.maxPlayers || 0);
+      if (maxPlayersTx > 0 && currentCountTx >= maxPlayersTx) {
+        throw new Error('টুর্নামেন্ট পূর্ণ।');
+      }
+      const nextPosition = currentCountTx + 1; // 1-based position
+      assignedPosition = nextPosition;
+
       // Deduct balance only if fee is greater than 0
       if (fee > 0) {
         tx.update(userRef, { balance: balance - fee });
@@ -208,11 +221,12 @@ export default async function handler(req, res) {
         fullName: u.fullName || 'User',
         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
         entryFee: fee,
+        position: nextPosition,
         // proof fields are set via PATCH/POST proof paths
       });
     });
 
-    return res.status(200).json({ success: true, message: 'সফলভাবে জয়েন করা হয়েছে।' });
+    return res.status(200).json({ success: true, message: 'সফলভাবে জয়েন করা হয়েছে।', position: assignedPosition });
   } catch (error) {
     console.error('API Error in joinTournament:', error);
     const msg = error?.message || 'সার্ভারে একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।';
