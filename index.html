@@ -559,14 +559,24 @@
 
             const participantsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts', post.id, 'participants');
             const participantsSnapshot = await getDocs(participantsRef);
-            const participantsCount = participantsSnapshot.size;
+            // Slots per participant is based on how many required IDs are needed; default 1
+            const slotsPerParticipant = Array.isArray(contestDetails.requiredIdTypes) && contestDetails.requiredIdTypes.length > 0
+                ? contestDetails.requiredIdTypes.length
+                : 1;
+            // Sum up currently used slots from participants
+            let slotsUsedTotal = 0;
+            participantsSnapshot.forEach(d => {
+                const pdata = d.data() || {};
+                const used = (typeof pdata.slotsUsed === 'number' && pdata.slotsUsed > 0) ? pdata.slotsUsed : 1;
+                slotsUsedTotal += used;
+            });
             
             const participantDoc = await getDoc(doc(participantsRef, currentUser.uid));
             const hasJoined = participantDoc.exists();
 
             postElement.dataset.joined = hasJoined ? 'true' : 'false';
 
-            const isFull = participantsCount >= contestDetails.maxPlayers;
+            const isFull = (Number(contestDetails.maxPlayers || 0) > 0) && (slotsUsedTotal >= Number(contestDetails.maxPlayers || 0));
             
             let statusColorClass = 'border-blue-500';
             if (post.status === 'inactive') statusColorClass = 'border-gray-400';
@@ -651,8 +661,8 @@
                 ? `<span data-field="entryFee">FREE</span>`
                 : `৳<span data-field="entryFee">${entryFeeValue}</span>`;
 
-            const remainingSpots = Math.max((contestDetails.maxPlayers || 0) - participantsCount, 0);
-            const canJoin = (currentUserRole === 'user') && !hasJoined && !isFull;
+            const remainingSpots = Math.max((Number(contestDetails.maxPlayers || 0)) - slotsUsedTotal, 0);
+            const canJoin = (currentUserRole === 'user') && !hasJoined && !isFull && (remainingSpots >= slotsPerParticipant);
             const joinButtonHTML = `
                 <div class="flex-shrink-0">
                     ${canJoin ? `<button class="progress-join-btn px-6 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Join</button>` : ''}
@@ -708,11 +718,11 @@
                     <div class="flex items-center gap-4">
                         <div class="flex-1 min-w-0">
                             <div class="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div id="progress-fill-${post.id}" class="h-full bg-blue-500" style="width: ${Math.min(100, Math.max(0, Math.round((participantsCount / (contestDetails.maxPlayers || 1)) * 100)))}%"></div>
+                                <div id="progress-fill-${post.id}" class="h-full bg-blue-500" style="width: ${Math.min(100, Math.max(0, Math.round((slotsUsedTotal / (Number(contestDetails.maxPlayers || 1))) * 100)))}%"></div>
                             </div>
                             <div class="flex justify-between mt-1.5 text-[12px] leading-none text-gray-500 whitespace-nowrap">
                                 <span id="spots-left-${post.id}">Only ${remainingSpots} spots are left</span>
-                                <span id="participants-${post.id}">${participantsCount}/${contestDetails.maxPlayers}</span>
+                                <span id="participants-${post.id}">${slotsUsedTotal}/${contestDetails.maxPlayers}</span>
                             </div>
                         </div>
                         ${joinButtonHTML}
@@ -1018,15 +1028,17 @@
                         const currentCountText = participantsCountEl.textContent.split('/')[0];
                         const currentCount = parseInt(currentCountText, 10);
                         if (!isNaN(currentCount)) {
-                            const maxPlayers = contestDetails.maxPlayers;
-                            const newCount = Math.min(maxPlayers, currentCount + 1);
+                            const maxPlayers = Number(contestDetails.maxPlayers || 0);
+                            const slotsPerParticipantLocal = Array.isArray(contestDetails.requiredIdTypes) && contestDetails.requiredIdTypes.length > 0 ? contestDetails.requiredIdTypes.length : 1;
+                            const newCount = Math.min(maxPlayers, currentCount + slotsPerParticipantLocal);
                             participantsCountEl.textContent = `${newCount}/${maxPlayers}`;
                             if (spotsLeftEl) {
                                 const left = Math.max(0, maxPlayers - newCount);
                                 spotsLeftEl.textContent = `Only ${left} spots are left`;
                             }
                             if (fillEl) {
-                                const pct = Math.min(100, Math.max(0, Math.round((newCount / (maxPlayers || 1)) * 100)));
+                                const denom = maxPlayers > 0 ? maxPlayers : 1;
+                                const pct = Math.min(100, Math.max(0, Math.round((newCount / denom) * 100)));
                                 fillEl.style.width = pct + '%';
                             }
                         }
