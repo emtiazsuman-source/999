@@ -144,9 +144,19 @@ export default async function handler(req, res) {
 
     const maxPlayers = Number(contestDetails?.maxPlayers || 0);
     const entryFee = Number(contestDetails?.entryFee || 0);
-    const currentCount = participantsSnap.size;
+    // Slots per participant is based on how many required IDs are needed
+    const slotsPerParticipant = Array.isArray(contestDetails?.requiredIdTypes) && contestDetails.requiredIdTypes.length > 0
+      ? contestDetails.requiredIdTypes.length
+      : 1;
+    // Compute currently used slots
+    let currentSlots = 0;
+    participantsSnap.forEach(doc => {
+      const d = doc.data() || {};
+      const used = typeof d.slotsUsed === 'number' && d.slotsUsed > 0 ? d.slotsUsed : 1;
+      currentSlots += used;
+    });
 
-    if (maxPlayers > 0 && currentCount >= maxPlayers) {
+    if (maxPlayers > 0 && (currentSlots + slotsPerParticipant) > maxPlayers) {
       return res.status(400).json({ message: 'টুর্নামেন্ট পূর্ণ।' });
     }
     
@@ -188,12 +198,20 @@ export default async function handler(req, res) {
       const participantsCollPath = `artifacts/${appId}/public/data/posts/${postId}/participants`;
       const participantsColl = db.collection(participantsCollPath);
       const participantsSnapTx = await tx.get(participantsColl);
-      const currentCountTx = participantsSnapTx.size;
+      const currentCountTx = participantsSnapTx.size; // for sequential position
       const maxPlayersTx = Number(cd.maxPlayers || 0);
-      if (maxPlayersTx > 0 && currentCountTx >= maxPlayersTx) {
+      // Calculate slots currently used inside the transaction
+      let currentSlotsTx = 0;
+      participantsSnapTx.docs.forEach(ds => {
+        const pd = ds.data() || {};
+        const used = typeof pd.slotsUsed === 'number' && pd.slotsUsed > 0 ? pd.slotsUsed : 1;
+        currentSlotsTx += used;
+      });
+      const slotsPerParticipantTx = Array.isArray(cd?.requiredIdTypes) && cd.requiredIdTypes.length > 0 ? cd.requiredIdTypes.length : 1;
+      if (maxPlayersTx > 0 && (currentSlotsTx + slotsPerParticipantTx) > maxPlayersTx) {
         throw new Error('টুর্নামেন্ট পূর্ণ।');
       }
-      const nextPosition = currentCountTx + 1; // 1-based position
+      const nextPosition = currentCountTx + 1; // 1-based position per participant
       assignedPosition = nextPosition;
 
       // Deduct balance only if fee is greater than 0
@@ -221,6 +239,7 @@ export default async function handler(req, res) {
         fullName: u.fullName || 'User',
         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
         entryFee: fee,
+        slotsUsed: slotsPerParticipantTx,
         position: nextPosition,
         // proof fields are set via PATCH/POST proof paths
       });
