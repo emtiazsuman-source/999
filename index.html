@@ -1577,21 +1577,10 @@
             const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
             const participantsRef = collection(postRef, 'participants');
 
-            // ######## MODIFICATION START ########
-            // জয়েন করার সময় অনুযায়ী প্লেয়ারদের সর্ট করার জন্য কোয়েরি তৈরি করা হয়েছে
-            // This query sorts the participants by their joining time (oldest first).
-            // A 'joinedAt' field with a server timestamp must be saved when a user joins.
-            const participantsQuery = query(participantsRef, orderBy("joinedAt", "asc"));
-            // ######## MODIFICATION END ########
-
             try {
-                const [postDoc, participantsSnapshot] = await Promise.all([
+                const [postDoc, participantsSnapshotRaw] = await Promise.all([
                     getDoc(postRef),
-                    // ######## MODIFICATION START ########
-                    // এখন পার্টিসিপেন্টদের তালিকা আনার জন্য সর্টেড কোয়েরিটি ব্যবহার করা হচ্ছে
-                    // Using the sorted query to fetch the list of participants
-                    getDocs(participantsQuery)
-                    // ######## MODIFICATION END ########
+                    getDocs(participantsRef)
                 ]);
 
                 if (!postDoc.exists()) throw new Error("Tournament not found!");
@@ -1600,10 +1589,21 @@
                 const pendingPrizes = postData.pendingPrizes || {};
                 const pendingNotes = postData.pendingNotes || {};
 
+                // Sort by stored 'position' first (asc), fallback to 'joinedAt' (asc)
+                const participantsDocs = participantsSnapshotRaw.docs.slice().sort((a, b) => {
+                    const ad = a.data() || {}; const bd = b.data() || {};
+                    const ap = (typeof ad.position === 'number') ? ad.position : Number.POSITIVE_INFINITY;
+                    const bp = (typeof bd.position === 'number') ? bd.position : Number.POSITIVE_INFINITY;
+                    if (ap !== bp) return ap - bp;
+                    const aj = ad.joinedAt?.toMillis ? ad.joinedAt.toMillis() : 0;
+                    const bj = bd.joinedAt?.toMillis ? bd.joinedAt.toMillis() : 0;
+                    return aj - bj;
+                });
+
                 let playersHTML = '';
-                if (!participantsSnapshot.empty) {
+                if (participantsDocs.length > 0) {
                     playersHTML = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
-                    participantsSnapshot.docs.forEach((doc, index) => {
+                    participantsDocs.forEach((doc, index) => {
                         const player = doc.data();
                         const savedPrize = pendingPrizes[doc.id] || '';
                         const savedNote = pendingNotes[doc.id] || '';
