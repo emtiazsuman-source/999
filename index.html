@@ -682,6 +682,10 @@
                         ${hasJoined ? `
                         <div class="space-y-2">
                             <div class="flex justify-between items-center">
+                                <span class="text-gray-600">Your Position</span>
+                                <code id="position-${post.id}" class="bg-green-100 text-green-800 px-2 py-0.5 rounded">Calculating...</code>
+                            </div>
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-600">Room ID</span>
                                 <div class="flex items-center">
                                     <code class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded">${contestDetails.roomId || '—'}</code>
@@ -767,6 +771,11 @@
             
             if (postElement.querySelector('.submit-proof-btn')) {
                 postElement.querySelector('.submit-proof-btn').onclick = () => openProofModal(post.id);
+            }
+
+            // If user already joined, compute and show their join position
+            if (hasJoined) {
+                try { await updateUserPosition(post.id); } catch (e) { /* ignore */ }
             }
 
             const roomBtn = postElement.querySelector('.toggle-room');
@@ -910,6 +919,10 @@
                         roomDetailsDiv.innerHTML = `
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">Your Position</span>
+                                    <code id="position-${postId}" class="bg-green-100 text-green-800 px-2 py-0.5 rounded">Calculating...</code>
+                                </div>
+                                <div class="flex justify-between items-center">
                                     <span class="text-gray-600">Room ID</span>
                                     <div class="flex items-center">
                                         <code class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded">${contestDetails.roomId || '—'}</code>
@@ -928,6 +941,8 @@
                         `;
                         const proofBtn = roomDetailsDiv.querySelector('.submit-proof-btn');
                         if (proofBtn) proofBtn.onclick = () => openProofModal(postId);
+                        // Update and display user's join position after a successful join
+                        try { await updateUserPosition(postId); } catch (e) { /* ignore */ }
                     }
                     
                     postElement.dataset.joined = 'true';
@@ -960,6 +975,19 @@
             } finally {
                 loadingEl.classList.add('hidden');
             }
+        };
+
+        // Helper: compute and render the current user's position number based on join order
+        const updateUserPosition = async (postId) => {
+            if (!currentUser) return;
+            const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
+            const participantsRef = collection(postRef, 'participants');
+            const qy = query(participantsRef, orderBy('joinedAt', 'asc'));
+            const snap = await getDocs(qy);
+            let pos = null;
+            snap.forEach((d, idx) => { if (d.id === currentUser.uid) pos = idx + 1; });
+            const el = document.getElementById(`position-${postId}`);
+            if (el) el.textContent = pos ? `Position NO: ${pos}` : 'Not found';
         };
 
         const openProofModal = async (postId) => {
@@ -1547,7 +1575,7 @@
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3">
-                                            <span class="font-bold text-lg text-slate-400">${index + 1}.</span>
+                                            <span class="font-bold text-sm text-slate-500 px-2 py-0.5 bg-slate-100 rounded">Position NO: ${index + 1}</span>
                                             <p class="font-semibold text-gray-800"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalues='${idValuesString}'>${player.fullName}</span></p>
                                         </div>
                                         <div class="mt-1 pl-8 space-y-1">${idDisplayHTML}</div>
@@ -1621,7 +1649,7 @@
                             gridHTML += `
                                 <div class="border rounded-lg p-3 bg-white shadow-sm flex flex-col">
                                     <div class="flex items-center gap-3">
-                                        <span class="flex-shrink-0 font-bold text-lg text-gray-400 w-8 text-center">${i + 1}.</span>
+                                        <span class="flex-shrink-0 font-bold text-xs text-slate-600 px-2 py-0.5 bg-slate-100 rounded">Position NO: ${i + 1}</span>
                                         <h3 class="font-semibold text-base text-gray-900 truncate">${name}</h3>
                                     </div>
                                     <div class="pl-11 mt-2 pt-2 border-t border-slate-200 space-y-1">
@@ -1631,7 +1659,7 @@
                             `;
                             
                             const plainTextIds = Object.entries(ids).map(([key, val]) => `- ${val} (${key})`);
-                            plainTextList += `${i + 1}. ${name}\n${plainTextIds.join('\n')}\n\n`;
+                            plainTextList += `Position NO: ${i + 1} - ${name}\n${plainTextIds.join('\n')}\n\n`;
                         });
                         gridHTML += '</div>';
 
