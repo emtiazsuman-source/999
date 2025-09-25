@@ -854,10 +854,12 @@
                         header.append(userInfo, amountInfo);
                         const detailsContainer = document.createElement('div'); detailsContainer.className = 'mt-2 border-t border-gray-100 pt-2';
                         if (type === 'add-money') {
+                            const methodText = (request.method || request.paymentMethod || '').toString().toUpperCase();
                             detailsContainer.innerHTML = `<div class="text-xs text-gray-600 space-y-1 text-left">
-                                <p><span>ব্যবহারকারীর নম্বর:</span> <span class="font-mono font-semibold">${request.senderNumber}</span></p>
-                                <p><span>অ্যাডমিন নম্বর:</span> <span class="font-mono font-semibold">${request.recipientAdminNumber}</span></p>
-                                <p><span>ট্রানজেকশন আইডি:</span> <span class="font-mono font-semibold">${request.txId}</span></p>
+                                ${methodText ? `<p><span>মেথড:</span> <span class=\"font-semibold\">${methodText}</span></p>` : ''}
+                                <p><span>ব্যবহারকারীর নম্বর:</span> <span class="font-mono font-semibold">${request.senderNumber || ''}</span></p>
+                                <p><span>অ্যাডমিন নম্বর:</span> <span class="font-mono font-semibold">${request.recipientAdminNumber || ''}</span></p>
+                                <p><span>ট্রানজেকশন আইডি:</span> <span class="font-mono font-semibold">${request.txId || request.transactionId || ''}</span></p>
                             </div>`;
                         } else {
                             detailsContainer.innerHTML = `<p class="text-xs text-gray-500">To: <span class="font-mono">${request.recipientNumber}</span> (${request.method})</p>`;
