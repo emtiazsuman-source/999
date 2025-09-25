@@ -65,6 +65,15 @@
             </button>
           </div>
         </div>
+        <div class="mt-5">
+          <div class="text-xs uppercase text-gray-400 font-semibold mb-2">Cash Shortcuts</div>
+          <div class="grid grid-cols-1 gap-2">
+            <button id="cs-add" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-plus mr-2 text-pink-600"></i> অ্যাড মানি</button>
+            <button id="cs-transfer" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-paper-plane mr-2 text-pink-600"></i> ট্রান্সফার মানি</button>
+            <button id="cs-settings" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-gear mr-2 text-pink-600"></i> সেটিংস</button>
+            <button id="cs-usersearch" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-magnifying-glass mr-2 text-pink-600"></i> ব্যবহারকারী সার্চ</button>
+          </div>
+        </div>
       </aside>
 
       <!-- Main Content -->
@@ -161,6 +170,11 @@
     const reloadBtn = document.getElementById('reload-pane');
     const openNewBtn = document.getElementById('open-new');
     const statusText = document.getElementById('status-text');
+    // Cash shortcuts
+    const csAdd = document.getElementById('cs-add');
+    const csTransfer = document.getElementById('cs-transfer');
+    const csSettings = document.getElementById('cs-settings');
+    const csUserSearch = document.getElementById('cs-usersearch');
 
     function setTab(active) {
       const cashActive = active === 'cash';
@@ -227,6 +241,44 @@
       el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('[data-close]')) el.remove(); });
     }
     function copyText(text) { navigator.clipboard.writeText(text).catch(() => {}); }
+
+    function isCashIframeActive() { return !frameCash.classList.contains('hidden'); }
+    function tryClickInCashFrame(tabId) {
+      try {
+        const docu = frameCash?.contentWindow?.document;
+        const el = docu && docu.getElementById(tabId);
+        if (el) { el.click(); return true; }
+      } catch (_) { /* cross-origin or not ready */ }
+      return false;
+    }
+    function scrollInto(el) { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+    // Cash Shortcuts handlers
+    function handleShortcut(type) {
+      setTab('cash');
+      const iframeOk = isCashIframeActive();
+      if (iframeOk) {
+        const map = {
+          add: 'add-money-tab',
+          transfer: 'transfer-money-tab',
+          settings: 'charge-settings-tab',
+          user: 'user-search-tab'
+        };
+        const clicked = tryClickInCashFrame(map[type]);
+        if (!clicked) statusText.textContent = 'Panel loading… try again';
+      } else {
+        // Fallback: scroll to sections or show info
+        if (type === 'add') scrollInto(document.getElementById('fb-list-add'));
+        else if (type === 'transfer') scrollInto(document.getElementById('fb-list-transfer'));
+        else if (type === 'settings') openModal('infoM', 'সেটিংস', '<div class="p-2">Fallback মোডে সেটিংস পাওয়া যাচ্ছে না।</div>');
+        else if (type === 'user') openModal('infoM', 'ব্যবহারকারী সার্চ', '<div class="p-2">Fallback মোডে ব্যবহারকারী সার্চ পাওয়া যাচ্ছে না।</div>');
+      }
+    }
+
+    if (csAdd) csAdd.addEventListener('click', () => handleShortcut('add'));
+    if (csTransfer) csTransfer.addEventListener('click', () => handleShortcut('transfer'));
+    if (csSettings) csSettings.addEventListener('click', () => handleShortcut('settings'));
+    if (csUserSearch) csUserSearch.addEventListener('click', () => handleShortcut('user'));
 
     // ---------- Fallback renderers ----------
     async function checkRouteAvailable(path) {
