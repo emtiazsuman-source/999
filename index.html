@@ -1791,7 +1791,7 @@
                         nameLinks.forEach((el, i) => {
                             const ids = JSON.parse(el.dataset.idvalues || '{}');
                             const idValuesHTML = Object.entries(ids)
-                                .map(([key, val]) => `<p class="font-mono text-slate-200 text-sm break-all">${val}</p>`)
+                                .map(([key, val]) => `<div class="flex items-center justify-center h-9 px-2 bg-slate-700/40 border border-slate-600 rounded text-slate-100 font-mono text-sm text-center break-all">${val}</div>`)
                                 .join('');
 
                             // Card with a dedicated left strip for position number
