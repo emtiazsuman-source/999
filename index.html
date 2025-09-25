@@ -1667,7 +1667,7 @@
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3">
-                                            <span class="font-bold text-sm text-slate-500 px-2 py-0.5 bg-slate-100 rounded">Position NO: ${index + 1}</span>
+                                            <span class="font-bold text-sm text-slate-500 px-2 py-0.5 bg-slate-100 rounded">${index + 1}.</span>
                                             <p class="font-semibold text-gray-800"><span class="user-name-link text-blue-600 hover:underline cursor-pointer" data-userid="${doc.id}" data-idvalues='${idValuesString}'>${player.fullName}</span></p>
                                         </div>
                                         <div class="mt-1 pl-8 space-y-1">${idDisplayHTML}</div>
@@ -1741,7 +1741,7 @@
                             gridHTML += `
                                 <div class="border rounded-lg p-3 bg-white shadow-sm flex flex-col">
                                     <div class="flex items-center gap-3">
-                                        <span class="flex-shrink-0 font-bold text-xs text-slate-600 px-2 py-0.5 bg-slate-100 rounded">Position NO: ${i + 1}</span>
+                                        <span class="flex-shrink-0 font-bold text-xs text-slate-600 px-2 py-0.5 bg-slate-100 rounded">${i + 1}.</span>
                                         <h3 class="font-semibold text-base text-gray-900 truncate">${name}</h3>
                                     </div>
                                     <div class="pl-11 mt-2 pt-2 border-t border-slate-200 space-y-1">
@@ -1751,7 +1751,7 @@
                             `;
                             
                             const plainTextIds = Object.entries(ids).map(([key, val]) => `- ${val} (${key})`);
-                            plainTextList += `Position NO: ${i + 1} - ${name}\n${plainTextIds.join('\n')}\n\n`;
+                            plainTextList += `${i + 1}. - ${name}\n${plainTextIds.join('\n')}\n\n`;
                         });
                         gridHTML += '</div>';
 
