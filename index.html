@@ -1730,6 +1730,26 @@
                     onlyIdBtn.innerHTML = '<i class="fas fa-list"></i> Only ID List';
                     prizesHeaderEl.insertBefore(onlyIdBtn, closeBtnEl || null);
 
+                    // Move action buttons to header: Save Progress & Confirm & Distribute
+                    const saveTopBtn = document.createElement('button');
+                    saveTopBtn.id = 'save-progress-btn-top';
+                    saveTopBtn.className = 'ml-auto mr-3 text-sm px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold flex items-center gap-2';
+                    saveTopBtn.innerHTML = '<i class="fas fa-save"></i> Save Progress';
+                    saveTopBtn.addEventListener('click', () => handleSaveDistribution(postId));
+
+                    const confirmTopBtn = document.createElement('button');
+                    confirmTopBtn.id = 'confirm-distribute-btn-top';
+                    confirmTopBtn.className = 'mr-2 text-sm px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold flex items-center gap-2';
+                    confirmTopBtn.innerHTML = '<i class="fas fa-check"></i> Confirm & Distribute';
+                    confirmTopBtn.addEventListener('click', () => handleConfirmDistribution(postId));
+
+                    prizesHeaderEl.insertBefore(confirmTopBtn, closeBtnEl || null);
+                    prizesHeaderEl.insertBefore(saveTopBtn, confirmTopBtn);
+
+                    // Hide bottom button bar to avoid duplication (keep for compatibility)
+                    const bottomBar = document.querySelector('#managePrizesModal #prize-distribution-form > div');
+                    if (bottomBar) bottomBar.classList.add('hidden');
+
                     userIdBtn.addEventListener('click', () => {
                         const nameLinks = Array.from(document.querySelectorAll('#managePrizesModal .user-name-link'));
                         if (!nameLinks.length) return;
