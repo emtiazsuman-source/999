@@ -7,6 +7,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://www.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <style>
     html, body { height: 100%; }
     body { background: #f0f2f5; }
@@ -32,6 +36,9 @@
       </div>
       <div class="flex items-center gap-2">
         <span id="admin-name" class="text-sm text-gray-700"></span>
+        <button id="perf-toggle" class="px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200 border">
+          <i class="fa-solid fa-gauge-high mr-1"></i> Speed Mode: Off
+        </button>
         <button id="logout-btn" class="px-3 py-1.5 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700">
           <i class="fa-solid fa-right-from-bracket mr-1"></i> লগআউট
         </button>
@@ -164,6 +171,7 @@
     const adminNameEl = document.getElementById('admin-name');
     const frameCash = document.getElementById('frame-cash');
     const frameTournament = document.getElementById('frame-tournament');
+    const perfToggle = document.getElementById('perf-toggle');
     const tabCash = document.getElementById('tab-cash');
     const tabTournament = document.getElementById('tab-tournament');
     const tabBtnCash = document.getElementById('tabbtn-cash');
@@ -198,7 +206,7 @@
       // Frames
       frameCash.classList.toggle('hidden', !cashActive);
       frameTournament.classList.toggle('hidden', cashActive);
-      if (!cashActive && frameTournament.src === 'about:blank') {
+      if (!cashActive && frameTournament.src === 'about:blank' && !isPerformanceMode()) {
         frameTournament.src = '/admin-t';
       }
       statusText.textContent = cashActive ? 'Cash Admin active' : 'Tournament Admin active';
@@ -291,6 +299,7 @@
     function subscribeSidebarBadges() {
       const badgeAdd = document.getElementById('cs-badge-add');
       const badgeTransfer = document.getElementById('cs-badge-transfer');
+      const headerPill = document.getElementById('status-pending');
       const setBadge = (el, count) => {
         if (!el) return;
         el.dataset.count = String(count);
@@ -301,8 +310,15 @@
       try { if (unsubTransferPending) unsubTransferPending(); } catch {}
       const addCol = collection(db, `artifacts/${appId}/add_money_requests`);
       const transferCol = collection(db, `artifacts/${appId}/money_transfer_requests`);
-      unsubAddPending = onSnapshot(query(addCol, where('status','==','pending')), (snap) => setBadge(badgeAdd, snap.size));
-      unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => setBadge(badgeTransfer, snap.size));
+      let addCount = 0, trCount = 0;
+      const updateHeader = () => {
+        if (!headerPill) return;
+        const total = (addCount || 0) + (trCount || 0);
+        headerPill.textContent = `${total} Pending`;
+        headerPill.classList.toggle('hidden', total === 0);
+      };
+      unsubAddPending = onSnapshot(query(addCol, where('status','==','pending')), (snap) => { addCount = snap.size; setBadge(badgeAdd, addCount); updateHeader(); });
+      unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => { trCount = snap.size; setBadge(badgeTransfer, trCount); updateHeader(); });
     }
     function unsubscribeSidebarBadges(){ try { if (unsubAddPending) unsubAddPending(); } catch {}; try { if (unsubTransferPending) unsubTransferPending(); } catch {}; }
     async function checkRouteAvailable(path) {
@@ -460,14 +476,30 @@
     }
 
     // Availability check and fallback toggling
+    function isPerformanceMode(){
+      return localStorage.getItem('adminMInternalOnly') === '1';
+    }
+
+    function updatePerfToggleUI(){
+      const on = isPerformanceMode();
+      if (perfToggle) perfToggle.textContent = on ? 'Speed Mode: On' : 'Speed Mode: Off';
+      if (perfToggle) perfToggle.classList.toggle('bg-green-100', on);
+      if (perfToggle) perfToggle.classList.toggle('text-green-700', on);
+    }
+
     async function initPanels() {
-      const cashOk = await checkRouteAvailable('/admin');
-      const tOk = await checkRouteAvailable('/admin-t');
-      showCashIframe(cashOk);
-      if (!cashOk) await loadCashFallback();
-      if (tOk && frameTournament.src === 'about:blank') frameTournament.src = '/admin-t';
-      showTournamentIframe(tOk);
-      if (!tOk) await loadTournamentFallback();
+      const internalOnly = isPerformanceMode();
+      let cashOk = false, tOk = false;
+      if (!internalOnly) {
+        cashOk = await checkRouteAvailable('/admin');
+        tOk = await checkRouteAvailable('/admin-t');
+      }
+      // Force internal fallback when in performance mode
+      showCashIframe(!internalOnly && cashOk);
+      if (internalOnly || !cashOk) await loadCashFallback();
+      if (!internalOnly && tOk && frameTournament.src === 'about:blank') frameTournament.src = '/admin-t';
+      showTournamentIframe(!internalOnly && tOk);
+      if (internalOnly || !tOk) await loadTournamentFallback();
 
       // Wire refresh buttons
       const r1 = document.getElementById('fb-refresh-cash');
@@ -484,8 +516,13 @@
         const isAdmin = snap.exists() && !!snap.data().isAdmin;
         adminNameEl.textContent = snap.data()?.fullName || user.email || 'Admin';
         if (!isAdmin) { window.location.href = '/'; return; }
+        // Default Speed Mode to ON on first load
+        if (localStorage.getItem('adminMInternalOnly') === null) {
+          localStorage.setItem('adminMInternalOnly', '1');
+        }
         setTab('cash');
         subscribeSidebarBadges();
+        updatePerfToggleUI();
         await initPanels();
       } catch (e) {
         console.error(e);
@@ -494,6 +531,17 @@
         loading.classList.add('hidden');
       }
     });
+
+    // Toggle performance mode
+    if (perfToggle) {
+      perfToggle.addEventListener('click', async () => {
+        const on = isPerformanceMode();
+        localStorage.setItem('adminMInternalOnly', on ? '0' : '1');
+        updatePerfToggleUI();
+        // Re-init panels to apply mode
+        await initPanels();
+      });
+    }
   </script>
 </body>
 </html>
