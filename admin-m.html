@@ -68,8 +68,8 @@
         <div class="mt-5">
           <div class="text-xs uppercase text-gray-400 font-semibold mb-2">Cash Shortcuts</div>
           <div class="grid grid-cols-1 gap-2">
-            <button id="cs-add" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-plus mr-2 text-pink-600"></i> অ্যাড মানি</button>
-            <button id="cs-transfer" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-paper-plane mr-2 text-pink-600"></i> ট্রান্সফার মানি</button>
+            <button id="cs-add" class="relative w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-plus mr-2 text-pink-600"></i> অ্যাড মানি <span id="cs-badge-add" class="hidden absolute right-2 top-1/2 -translate-y-1/2 min-w-[22px] h-[22px] inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[11px] px-1"></span></button>
+            <button id="cs-transfer" class="relative w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-paper-plane mr-2 text-pink-600"></i> ট্রান্সফার মানি <span id="cs-badge-transfer" class="hidden absolute right-2 top-1/2 -translate-y-1/2 min-w-[22px] h-[22px] inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[11px] px-1"></span></button>
             <button id="cs-settings" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-gear mr-2 text-pink-600"></i> সেটিংস</button>
             <button id="cs-usersearch" class="w-full px-3 py-2 text-sm rounded-lg bg-white hover:bg-gray-50 border flex items-center"><i class="fa-solid fa-magnifying-glass mr-2 text-pink-600"></i> ব্যবহারকারী সার্চ</button>
           </div>
@@ -141,7 +141,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, getDocs, collection, query, where, orderBy, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, getDocs, collection, query, where, orderBy, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCb9v4Q8XsaBKpnopMHE_5_aXEEMkEQork",
@@ -281,6 +281,26 @@
     if (csUserSearch) csUserSearch.addEventListener('click', () => handleShortcut('user'));
 
     // ---------- Fallback renderers ----------
+    // Real-time pending badges on sidebar
+    let unsubAddPending = null;
+    let unsubTransferPending = null;
+    function subscribeSidebarBadges() {
+      const badgeAdd = document.getElementById('cs-badge-add');
+      const badgeTransfer = document.getElementById('cs-badge-transfer');
+      const setBadge = (el, count) => {
+        if (!el) return;
+        el.dataset.count = String(count);
+        if (count > 0) { el.textContent = count > 99 ? '99+' : String(count); el.classList.remove('hidden'); }
+        else { el.textContent = ''; el.classList.add('hidden'); }
+      };
+      try { if (unsubAddPending) unsubAddPending(); } catch {}
+      try { if (unsubTransferPending) unsubTransferPending(); } catch {}
+      const addCol = collection(db, `artifacts/${appId}/add_money_requests`);
+      const transferCol = collection(db, `artifacts/${appId}/money_transfer_requests`);
+      unsubAddPending = onSnapshot(query(addCol, where('status','==','pending')), (snap) => setBadge(badgeAdd, snap.size));
+      unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => setBadge(badgeTransfer, snap.size));
+    }
+    function unsubscribeSidebarBadges(){ try { if (unsubAddPending) unsubAddPending(); } catch {}; try { if (unsubTransferPending) unsubTransferPending(); } catch {}; }
     async function checkRouteAvailable(path) {
       try {
         const res = await fetch(path, { method: 'HEAD' });
@@ -449,6 +469,7 @@
         adminNameEl.textContent = snap.data()?.fullName || user.email || 'Admin';
         if (!isAdmin) { window.location.href = '/'; return; }
         setTab('cash');
+        subscribeSidebarBadges();
         await initPanels();
       } catch (e) {
         console.error(e);
