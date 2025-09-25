@@ -7,10 +7,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script defer src="/_vercel/insights/script.js"></script>
-  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://www.googleapis.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <style>
     html, body { height: 100%; }
     body { background: #f0f2f5; }
@@ -36,9 +32,6 @@
       </div>
       <div class="flex items-center gap-2">
         <span id="admin-name" class="text-sm text-gray-700"></span>
-        <button id="perf-toggle" class="px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200 border">
-          <i class="fa-solid fa-gauge-high mr-1"></i> Speed Mode: Off
-        </button>
         <button id="logout-btn" class="px-3 py-1.5 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700">
           <i class="fa-solid fa-right-from-bracket mr-1"></i> লগআউট
         </button>
@@ -92,7 +85,6 @@
           </div>
           <div class="flex items-center gap-2">
             <span id="status-text" class="text-xs text-gray-500">Ready</span>
-            <span id="status-pending" class="hidden text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">0 Pending</span>
           </div>
         </div>
         <div class="relative flex-1">
@@ -171,7 +163,6 @@
     const adminNameEl = document.getElementById('admin-name');
     const frameCash = document.getElementById('frame-cash');
     const frameTournament = document.getElementById('frame-tournament');
-    const perfToggle = document.getElementById('perf-toggle');
     const tabCash = document.getElementById('tab-cash');
     const tabTournament = document.getElementById('tab-tournament');
     const tabBtnCash = document.getElementById('tabbtn-cash');
@@ -206,13 +197,10 @@
       // Frames
       frameCash.classList.toggle('hidden', !cashActive);
       frameTournament.classList.toggle('hidden', cashActive);
-      if (!cashActive && frameTournament.src === 'about:blank' && !isPerformanceMode()) {
+      if (!cashActive && frameTournament.src === 'about:blank') {
         frameTournament.src = '/admin-t';
       }
       statusText.textContent = cashActive ? 'Cash Admin active' : 'Tournament Admin active';
-      // Toggle pending pill visibility only on cash tab
-      const pendingPill = document.getElementById('status-pending');
-      if (pendingPill) pendingPill.classList.toggle('hidden', !cashActive);
     }
 
     function reloadCurrent() {
@@ -299,7 +287,6 @@
     function subscribeSidebarBadges() {
       const badgeAdd = document.getElementById('cs-badge-add');
       const badgeTransfer = document.getElementById('cs-badge-transfer');
-      const headerPill = document.getElementById('status-pending');
       const setBadge = (el, count) => {
         if (!el) return;
         el.dataset.count = String(count);
@@ -310,15 +297,8 @@
       try { if (unsubTransferPending) unsubTransferPending(); } catch {}
       const addCol = collection(db, `artifacts/${appId}/add_money_requests`);
       const transferCol = collection(db, `artifacts/${appId}/money_transfer_requests`);
-      let addCount = 0, trCount = 0;
-      const updateHeader = () => {
-        if (!headerPill) return;
-        const total = (addCount || 0) + (trCount || 0);
-        headerPill.textContent = `${total} Pending`;
-        headerPill.classList.toggle('hidden', total === 0);
-      };
-      unsubAddPending = onSnapshot(query(addCol, where('status','==','pending')), (snap) => { addCount = snap.size; setBadge(badgeAdd, addCount); updateHeader(); });
-      unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => { trCount = snap.size; setBadge(badgeTransfer, trCount); updateHeader(); });
+      unsubAddPending = onSnapshot(query(addCol, where('status','==','pending')), (snap) => setBadge(badgeAdd, snap.size));
+      unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => setBadge(badgeTransfer, snap.size));
     }
     function unsubscribeSidebarBadges(){ try { if (unsubAddPending) unsubAddPending(); } catch {}; try { if (unsubTransferPending) unsubTransferPending(); } catch {}; }
     async function checkRouteAvailable(path) {
@@ -353,23 +333,11 @@
           const amount = Number(data.amount || 0).toFixed(2);
           const uid = data.userId || data.uid || 'N/A';
           const createdAt = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleString() : '';
-          const methodRaw = (data.method || data.paymentMethod || data.gateway || data.channel || '').toString();
-          const method = methodRaw ? methodRaw.toUpperCase() : '';
-          const customer = data.customerNumber || data.customer || data.senderNumber || '';
-          const agent = data.agentNumber || data.recipientNumber || data.receiverNumber || '';
-          const trx = data.transactionId || data.txId || data.trxId || data.reference || '';
-          const methodBadge = method ? `<span class="ml-2 px-2 py-0.5 text-[10px] rounded bg-pink-100 text-pink-700 font-semibold">${method}</span>` : '';
-          const customerLine = customer ? `<p class="text-xs text-gray-600">কাস্টমার নাম্বার: <span class="font-mono">${customer}</span></p>` : '';
-          const agentLine = agent ? `<p class="text-xs text-gray-600">এজেন্ট নাম্বার: <span class="font-mono">${agent}</span></p>` : '';
-          const trxLine = trx ? `<p class="text-xs text-gray-600">ট্রানজেকশন আইডি: <span class="font-mono">${trx}</span></p>` : '';
           return `
-            <div class="p-3 bg-white border rounded-lg flex items-start justify-between gap-3">
+            <div class="p-3 bg-white border rounded-lg flex items-center justify-between gap-3">
               <div class="min-w-0">
-                <p class="font-semibold text-gray-800">৳ ${amount}${methodBadge}</p>
+                <p class="font-semibold text-gray-800">৳ ${amount}</p>
                 <p class="text-xs text-gray-500">UID: <span class="font-mono">${uid}</span></p>
-                ${customerLine}
-                ${agentLine}
-                ${trxLine}
                 <p class="text-[11px] text-gray-400">${createdAt}</p>
               </div>
               <div class="flex items-center gap-2">
@@ -476,30 +444,14 @@
     }
 
     // Availability check and fallback toggling
-    function isPerformanceMode(){
-      return localStorage.getItem('adminMInternalOnly') === '1';
-    }
-
-    function updatePerfToggleUI(){
-      const on = isPerformanceMode();
-      if (perfToggle) perfToggle.textContent = on ? 'Speed Mode: On' : 'Speed Mode: Off';
-      if (perfToggle) perfToggle.classList.toggle('bg-green-100', on);
-      if (perfToggle) perfToggle.classList.toggle('text-green-700', on);
-    }
-
     async function initPanels() {
-      const internalOnly = isPerformanceMode();
-      let cashOk = false, tOk = false;
-      if (!internalOnly) {
-        cashOk = await checkRouteAvailable('/admin');
-        tOk = await checkRouteAvailable('/admin-t');
-      }
-      // Force internal fallback when in performance mode
-      showCashIframe(!internalOnly && cashOk);
-      if (internalOnly || !cashOk) await loadCashFallback();
-      if (!internalOnly && tOk && frameTournament.src === 'about:blank') frameTournament.src = '/admin-t';
-      showTournamentIframe(!internalOnly && tOk);
-      if (internalOnly || !tOk) await loadTournamentFallback();
+      const cashOk = await checkRouteAvailable('/admin');
+      const tOk = await checkRouteAvailable('/admin-t');
+      showCashIframe(cashOk);
+      if (!cashOk) await loadCashFallback();
+      if (tOk && frameTournament.src === 'about:blank') frameTournament.src = '/admin-t';
+      showTournamentIframe(tOk);
+      if (!tOk) await loadTournamentFallback();
 
       // Wire refresh buttons
       const r1 = document.getElementById('fb-refresh-cash');
@@ -516,13 +468,8 @@
         const isAdmin = snap.exists() && !!snap.data().isAdmin;
         adminNameEl.textContent = snap.data()?.fullName || user.email || 'Admin';
         if (!isAdmin) { window.location.href = '/'; return; }
-        // Default Speed Mode to ON on first load
-        if (localStorage.getItem('adminMInternalOnly') === null) {
-          localStorage.setItem('adminMInternalOnly', '1');
-        }
         setTab('cash');
         subscribeSidebarBadges();
-        updatePerfToggleUI();
         await initPanels();
       } catch (e) {
         console.error(e);
@@ -531,17 +478,6 @@
         loading.classList.add('hidden');
       }
     });
-
-    // Toggle performance mode
-    if (perfToggle) {
-      perfToggle.addEventListener('click', async () => {
-        const on = isPerformanceMode();
-        localStorage.setItem('adminMInternalOnly', on ? '0' : '1');
-        updatePerfToggleUI();
-        // Re-init panels to apply mode
-        await initPanels();
-      });
-    }
   </script>
 </body>
 </html>
