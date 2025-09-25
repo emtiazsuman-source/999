@@ -867,7 +867,8 @@
                         cardContent.append(header, detailsContainer);
                         requestEl.appendChild(cardContent);
                         const currentStatus = (document.querySelector('.status-btn.active')?.dataset.status) || status;
-                        if (currentStatus === 'pending') {
+                        // Only show action buttons for pending requests
+                        if (currentStatus === 'pending' && request.status === 'pending') {
                             const buttonContainer = document.createElement('div');
                             buttonContainer.className = 'bg-gray-50 p-2';
                             buttonContainer.innerHTML = `
