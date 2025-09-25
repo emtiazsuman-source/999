@@ -52,16 +52,9 @@
       overflow: hidden;
     }
     
-    /* Custom bottom-only view */
+    /* Remove bottom-only view overlay */
     .bottom-only-view {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 200px;
-      background: white;
-      z-index: 20;
-      overflow-y: auto;
+      display: none;
     }
   </style>
 </head>
@@ -159,23 +152,6 @@
           <iframe id="frame-cash" src="/admin" title="Cash Admin" class="absolute inset-0 w-full h-full border-0" loading="eager"></iframe>
           <iframe id="frame-tournament" src="/admin-t" title="Tournament Admin" class="absolute inset-0 w-full h-full border-0 hidden" loading="eager"></iframe>
           
-          <!-- Bottom-only overlay -->
-          <div class="bottom-only-view">
-            <div class="p-4">
-              <div class="text-center text-gray-600 mb-4">
-                <i class="fa-solid fa-eye-slash text-2xl mb-2"></i>
-                <p class="text-sm">Main content hidden - Showing bottom area only</p>
-              </div>
-              <div class="flex justify-center gap-4">
-                <button id="show-full-view" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                  <i class="fa-solid fa-eye mr-2"></i>Show Full View
-                </button>
-                <button id="refresh-bottom" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm">
-                  <i class="fa-solid fa-refresh mr-2"></i>Refresh
-                </button>
-              </div>
-            </div>
-          </div>
 
           <!-- Fallback: Cash Admin Embedded -->
           <div id="fallback-cash" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
@@ -275,9 +251,6 @@
     const csTransfer = document.getElementById('cs-transfer');
     const csSettings = document.getElementById('cs-settings');
     const csUserSearch = document.getElementById('cs-usersearch');
-    const showFullViewBtn = document.getElementById('show-full-view');
-    const refreshBottomBtn = document.getElementById('refresh-bottom');
-    const bottomOnlyView = document.querySelector('.bottom-only-view');
 
     function setTab(active) {
       const cashActive = active === 'cash';
@@ -336,14 +309,6 @@
     openNewBtn.addEventListener('click', openCurrentInNew);
     logoutBtn.addEventListener('click', async () => { try { await signOut(auth); } finally { window.location.href = '/login'; } });
     
-    // Bottom-only view controls
-    showFullViewBtn.addEventListener('click', () => {
-      bottomOnlyView.classList.add('hidden');
-    });
-    
-    refreshBottomBtn.addEventListener('click', () => {
-      reloadCurrent();
-    });
 
     // ---------- Helpers: Modal & Copy ----------
     function openModal(id, title, bodyHtml) {
