@@ -7,6 +7,19 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script defer src="/_vercel/insights/script.js"></script>
+  
+  <!-- Preload critical resources for admin panels -->
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" as="script" crossorigin>
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" as="script" crossorigin>
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" as="script" crossorigin>
+  
+  <!-- Prefetch admin routes -->
+  <link rel="prefetch" href="/admin">
+  <link rel="prefetch" href="/admin-t">
+  
+  <!-- DNS prefetch for external resources -->
+  <link rel="dns-prefetch" href="//www.gstatic.com">
+  <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
   <style>
     html, body { height: 100%; }
     body { background: #f0f2f5; }
@@ -14,6 +27,24 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .app-h { height: 96vh; max-height: 920px; }
     @media (max-width: 1024px) { .hide-on-small { display: none; } }
+    
+    /* Preload animations and optimizations */
+    iframe {
+      will-change: transform;
+      backface-visibility: hidden;
+    }
+    
+    .preload-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
   </style>
 </head>
 <body class="min-h-screen">
@@ -88,9 +119,23 @@
           </div>
         </div>
         <div class="relative flex-1">
-          <!-- Two iframes, toggle visibility -->
-          <iframe id="frame-cash" src="/admin" title="Cash Admin" class="absolute inset-0 w-full h-full border-0"></iframe>
-          <iframe id="frame-tournament" src="about:blank" title="Tournament Admin" class="absolute inset-0 w-full h-full border-0 hidden"></iframe>
+          <!-- Preload indicators -->
+          <div id="preload-cash" class="preload-indicator hidden">
+            <div class="flex items-center gap-2 text-sm text-gray-600">
+              <div class="animate-spin w-4 h-4 border-2 rounded-full border-pink-600 border-t-transparent"></div>
+              <span>Loading Cash Admin...</span>
+            </div>
+          </div>
+          <div id="preload-tournament" class="preload-indicator hidden">
+            <div class="flex items-center gap-2 text-sm text-gray-600">
+              <div class="animate-spin w-4 h-4 border-2 rounded-full border-pink-600 border-t-transparent"></div>
+              <span>Loading Tournament Admin...</span>
+            </div>
+          </div>
+          
+          <!-- Two iframes, both preloaded for faster switching -->
+          <iframe id="frame-cash" src="/admin" title="Cash Admin" class="absolute inset-0 w-full h-full border-0" loading="eager"></iframe>
+          <iframe id="frame-tournament" src="/admin-t" title="Tournament Admin" class="absolute inset-0 w-full h-full border-0 hidden" loading="eager"></iframe>
 
           <!-- Fallback: Cash Admin Embedded -->
           <div id="fallback-cash" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
@@ -157,12 +202,27 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    
+    // Register Service Worker for caching
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/admin-sw.js')
+          .then((registration) => {
+            console.log('Admin SW registered:', registration);
+          })
+          .catch((error) => {
+            console.log('Admin SW registration failed:', error);
+          });
+      });
+    }
 
     const loading = document.getElementById('loading');
     const logoutBtn = document.getElementById('logout-btn');
     const adminNameEl = document.getElementById('admin-name');
     const frameCash = document.getElementById('frame-cash');
     const frameTournament = document.getElementById('frame-tournament');
+    const preloadCash = document.getElementById('preload-cash');
+    const preloadTournament = document.getElementById('preload-tournament');
     const tabCash = document.getElementById('tab-cash');
     const tabTournament = document.getElementById('tab-tournament');
     const tabBtnCash = document.getElementById('tabbtn-cash');
@@ -178,6 +238,13 @@
 
     function setTab(active) {
       const cashActive = active === 'cash';
+      
+      // Show preload indicator if iframe is not ready
+      if (cashActive && !frameCash.contentDocument) {
+        preloadCash.classList.remove('hidden');
+      } else if (!cashActive && !frameTournament.contentDocument) {
+        preloadTournament.classList.remove('hidden');
+      }
       // Sidebar state
       tabCash.classList.toggle('bg-pink-50', cashActive);
       tabCash.classList.toggle('text-pink-700', cashActive);
@@ -197,10 +264,14 @@
       // Frames
       frameCash.classList.toggle('hidden', !cashActive);
       frameTournament.classList.toggle('hidden', cashActive);
-      if (!cashActive && frameTournament.src === 'about:blank') {
-        frameTournament.src = '/admin-t';
-      }
+      // Both iframes are now preloaded, no need to set src dynamically
       statusText.textContent = cashActive ? 'Cash Admin active' : 'Tournament Admin active';
+      
+      // Hide preload indicators when switching
+      setTimeout(() => {
+        preloadCash.classList.add('hidden');
+        preloadTournament.classList.add('hidden');
+      }, 1000);
     }
 
     function reloadCurrent() {
@@ -443,13 +514,83 @@
       }
     }
 
+    // Enhanced iframe load handlers
+    frameCash.addEventListener('load', () => {
+      preloadCash.classList.add('hidden');
+      console.log('Cash admin loaded');
+    });
+    
+    frameTournament.addEventListener('load', () => {
+      preloadTournament.classList.add('hidden');
+      console.log('Tournament admin loaded');
+    });
+    
+    // Advanced resource preloader
+    function preloadCriticalResources() {
+      const resources = [
+        { url: '/admin', as: 'document' },
+        { url: '/admin-t', as: 'document' },
+        { url: 'https://cdn.tailwindcss.com', as: 'script' },
+        { url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css', as: 'style' }
+      ];
+      
+      resources.forEach(resource => {
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = resource.url;
+        if (resource.as) link.as = resource.as;
+        if (resource.url.includes('https://')) link.crossOrigin = 'anonymous';
+        document.head.appendChild(link);
+      });
+    }
+    
+    // Preload both iframes immediately
+    function preloadIframes() {
+      // Show indicators
+      preloadCash.classList.remove('hidden');
+      preloadTournament.classList.remove('hidden');
+      
+      // Preload critical resources first
+      preloadCriticalResources();
+      
+      // Add error handling for iframe loading
+      const handleIframeError = (iframe, fallbackId) => {
+        iframe.addEventListener('error', () => {
+          console.warn(`Failed to load ${iframe.src}, switching to fallback`);
+          iframe.classList.add('hidden');
+          document.getElementById(fallbackId).classList.remove('hidden');
+        });
+      };
+      
+      handleIframeError(frameCash, 'fallback-cash');
+      handleIframeError(frameTournament, 'fallback-tournament');
+      
+      // Force load both iframes with timeout
+      setTimeout(() => {
+        if (frameCash.src && frameCash.src !== 'about:blank') {
+          try {
+            frameCash.contentWindow.location.reload();
+          } catch (e) {
+            console.warn('Cash iframe reload failed:', e);
+          }
+        }
+        if (frameTournament.src && frameTournament.src !== 'about:blank') {
+          try {
+            frameTournament.contentWindow.location.reload();
+          } catch (e) {
+            console.warn('Tournament iframe reload failed:', e);
+          }
+        }
+      }, 100);
+    }
+    
     // Availability check and fallback toggling
     async function initPanels() {
       const cashOk = await checkRouteAvailable('/admin');
       const tOk = await checkRouteAvailable('/admin-t');
       showCashIframe(cashOk);
       if (!cashOk) await loadCashFallback();
-      if (tOk && frameTournament.src === 'about:blank') frameTournament.src = '/admin-t';
+      // Tournament iframe is already preloaded with /admin-t
       showTournamentIframe(tOk);
       if (!tOk) await loadTournamentFallback();
 
@@ -470,7 +611,13 @@
         if (!isAdmin) { window.location.href = '/'; return; }
         setTab('cash');
         subscribeSidebarBadges();
+        preloadIframes(); // Preload both iframes immediately
         await initPanels();
+        
+        // Final optimization: warm up both panels after initial load
+        setTimeout(() => {
+          statusText.textContent = 'Both admin panels preloaded and ready';
+        }, 3000);
       } catch (e) {
         console.error(e);
         window.location.href = '/login';
