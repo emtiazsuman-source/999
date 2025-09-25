@@ -25,7 +25,7 @@
     body { background: #f0f2f5; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .app-h { height: 96vh; max-height: 920px; }
+    .app-h { height: calc(100vh - 24px); min-height: 600px; }
     @media (max-width: 1024px) { .hide-on-small { display: none; } }
     
     /* Preload animations and optimizations */
@@ -46,10 +46,9 @@
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     
-    /* Hide main iframe content and show only bottom area */
+    /* Iframe styling */
     iframe {
       position: relative;
-      overflow: hidden;
     }
     
     /* Remove bottom-only view overlay */
@@ -123,7 +122,7 @@
       </aside>
 
       <!-- Main Content -->
-      <section class="col-span-10 flex flex-col bg-white overflow-hidden">
+      <section class="col-span-10 flex flex-col bg-white">
         <div class="flex items-center justify-between px-3 py-2 bg-gray-50 hidden">
           <div class="flex items-center gap-2">
             <button id="tabbtn-cash" class="px-3 py-1.5 rounded-md text-sm font-semibold bg-pink-600 text-white">Cash Admin</button>
@@ -133,7 +132,7 @@
             <span id="status-text" class="text-xs text-gray-500">Ready</span>
           </div>
         </div>
-        <div class="relative flex-1">
+        <div class="relative flex-1 h-full">
           <!-- Preload indicators -->
           <div id="preload-cash" class="preload-indicator hidden">
             <div class="flex items-center gap-2 text-sm text-gray-600">
