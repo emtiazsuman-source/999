@@ -36,7 +36,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, getDocs, updateDoc, addDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCb9v4Q8XsaBKpnopMHE_5_aXEEMkEQork",
@@ -206,7 +206,28 @@
           <p class="text-sm text-gray-700"><span class="font-semibold">নাম:</span> ${user.fullName || 'N/A'}</p>
           <p class="text-sm text-gray-700"><span class="font-semibold">মোবাইল:</span> ${user.mobile || 'N/A'}</p>
           <p class="text-sm text-gray-700"><span class="font-semibold">ইউজার আইডি:</span> <span class="font-mono">${userId}</span></p>
-          <p class="text-sm text-gray-700"><span class="font-semibold">ব্যালেন্স:</span> ৳ ${(user.balance || 0).toFixed(2)}</p>
+          <p id="profile-balance" class="text-sm text-gray-700"><span class="font-semibold">ব্যালেন্স:</span> ৳ ${(user.balance || 0).toFixed(2)}</p>
+        `;
+
+        // Admin balance adjust box
+        const adjustBox = document.createElement('div');
+        adjustBox.className = 'bg-white rounded-lg p-3 border';
+        adjustBox.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-semibold text-gray-800">ব্যালেন্স এডজাস্ট (অ্যাড/ডেবিট)</h4>
+          </div>
+          <div class="grid grid-cols-1 gap-2">
+            <div class="flex items-center gap-2">
+              <select id="adj-type" class="px-2 py-1 border rounded-md text-sm">
+                <option value="credit">ক্রেডিট (+)</option>
+                <option value="debit">ডেবিট (-)</option>
+              </select>
+              <input id="adj-amount" type="number" step="0.01" min="0" placeholder="পরিমাণ" class="flex-1 px-2 py-1 border rounded-md text-sm" />
+            </div>
+            <input id="adj-note" type="text" placeholder="নোট (ঐচ্ছিক)" class="px-2 py-1 border rounded-md text-sm" />
+            <button id="adj-submit" class="px-3 py-2 bg-pink-600 text-white rounded-md text-sm">আপডেট করুন</button>
+            <p id="adj-hint" class="text-[12px] text-gray-500">এই এডজাস্টমেন্টটি ট্রানজেকশন হিস্টরিতে "admin_adjust" হিসেবে সংরক্ষণ হবে।</p>
+          </div>
         `;
 
         const listWrap = document.createElement('div');
@@ -297,7 +318,7 @@
         }
         listWrap.append(listTitle, listEl);
 
-        container.append(headerDiv, profileBox, listWrap);
+        container.append(headerDiv, profileBox, adjustBox, listWrap);
         modalContent.appendChild(container);
         modal.classList.remove('hidden');
         setTimeout(() => modalContent.classList.add('scale-100'), 10);
@@ -307,6 +328,35 @@
           setTimeout(() => modal.classList.add('hidden'), 200);
         };
         document.getElementById('close-user-profile-modal').addEventListener('click', close, { once: true });
+        // Wire adjust handler
+        const adjBtn = adjustBox.querySelector('#adj-submit');
+        adjBtn.addEventListener('click', async () => {
+          const type = adjustBox.querySelector('#adj-type').value;
+          const amtStr = adjustBox.querySelector('#adj-amount').value;
+          const note = adjustBox.querySelector('#adj-note').value?.trim() || '';
+          const amount = Number(amtStr);
+          if (!amtStr || isNaN(amount) || amount <= 0) { showMessage('সঠিক পরিমাণ লিখুন'); return; }
+          try {
+            showLoading(true);
+            await adjustUserBalance(userId, amount, type === 'credit', note);
+            // Update UI balance optimistically
+            const balEl = document.getElementById('profile-balance');
+            const cur = Number((user.balance || 0));
+            const delta = type === 'credit' ? amount : -amount;
+            const next = (cur + delta).toFixed(2);
+            balEl.innerHTML = `<span class="font-semibold">ব্যালেন্স:</span> ৳ ${next}`;
+            user.balance = Number(next);
+            showMessage('ব্যালেন্স আপডেট হয়েছে');
+            // Clear inputs
+            adjustBox.querySelector('#adj-amount').value = '';
+            adjustBox.querySelector('#adj-note').value = '';
+          } catch (e) {
+            console.error(e);
+            showMessage('আপডেট ব্যর্থ হয়েছে');
+          } finally {
+            showLoading(false);
+          }
+        });
         modal.addEventListener('click', (e) => { if (e.target.id === 'transaction-details-modal') close(); }, { once: true });
       } catch (err) {
         console.error('Failed to load user profile:', err);
@@ -314,6 +364,22 @@
       } finally {
         showLoading(false);
       }
+    }
+
+    async function adjustUserBalance(userId, amount, isCredit, note) {
+      const userRef = doc(db, `artifacts/${appId}/users/${userId}`);
+      const delta = isCredit ? amount : -amount;
+      // Update balance atomically
+      await updateDoc(userRef, { balance: increment(delta) });
+      // Log transaction under user's transactions
+      const txRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+      await addDoc(txRef, {
+        type: 'admin_adjust',
+        status: 'success',
+        amount: delta,
+        description: `${isCredit ? 'Admin Credit' : 'Admin Debit'}${note ? ' - ' + note : ''}`,
+        timestamp: serverTimestamp()
+      });
     }
 
     function showTransactionDetails(tx, userId) {
