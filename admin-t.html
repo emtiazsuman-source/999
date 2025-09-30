@@ -75,6 +75,16 @@
       else loadingOverlay.classList.add('hidden');
     }
 
+    // Generate a 9-character alphanumeric (A-Z,0-9) transaction ID
+    function generateTransactionId() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let result = '';
+      for (let i = 0; i < 9; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+
     logoutBtn.addEventListener('click', async () => {
       try { await signOut(auth); showMessage('আপনি সফলভাবে লগআউট করেছেন।'); window.location.href = '/login'; } catch(e) { showMessage('লগআউট ব্যর্থ হয়েছে'); }
     });
@@ -386,11 +396,13 @@
       await updateDoc(userRef, { balance: increment(delta) });
       // Log transaction under user's transactions
       const txRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+      const transactionId = generateTransactionId();
       await addDoc(txRef, {
         type: 'admin_adjust',
         status: 'success',
         amount: delta,
         description: `${isCredit ? 'Admin Credit' : 'Admin Debit'}${note ? ' - ' + note : ''}`,
+        transactionId,
         timestamp: serverTimestamp()
       });
     }

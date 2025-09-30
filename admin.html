@@ -607,6 +607,16 @@
             return hash;
         }
 
+        // Generate a 9-character alphanumeric (A-Z,0-9) transaction ID
+        function generateTransactionId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < 9; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
         // --- Admin Panel UI ---
         function renderAdminDashboard() {
             const headerH1 = document.querySelector('#header h1');
@@ -1206,11 +1216,13 @@
             const delta = isCredit ? amount : -amount;
             await updateDoc(userRef, { balance: increment(delta) });
             const txRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+            const transactionId = generateTransactionId();
             await addDoc(txRef, {
                 type: 'admin_adjust',
                 status: 'success',
                 amount: delta,
                 description: `${isCredit ? 'Admin Credit' : 'Admin Debit'}${note ? ' - ' + note : ''}`,
+                transactionId,
                 timestamp: serverTimestamp()
             });
         }

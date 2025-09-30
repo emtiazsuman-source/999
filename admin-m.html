@@ -13,9 +13,6 @@
   <link rel="preload" href="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" as="script" crossorigin>
   <link rel="preload" href="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" as="script" crossorigin>
   
-  <!-- Prefetch admin routes -->
-  <link rel="prefetch" href="/admin">
-  <link rel="prefetch" href="/admin-t">
   
   <!-- DNS prefetch for external resources -->
   <link rel="dns-prefetch" href="//www.gstatic.com">
@@ -90,6 +87,12 @@
             <button id="tab-tournament" class="w-full text-left px-3 py-2 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
               <i class="fa-solid fa-trophy mr-2"></i> Tournament Admin
             </button>
+            <button id="tab-user" class="w-full text-left px-3 py-2 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
+              <i class="fa-solid fa-magnifying-glass mr-2"></i> User Search
+            </button>
+            <button id="tab-settings" class="w-full text-left px-3 py-2 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
+              <i class="fa-solid fa-gear mr-2"></i> Admin Settings
+            </button>
           </nav>
         </div>
         <div class="mt-4 hide-on-small">
@@ -133,29 +136,10 @@
           </div>
         </div>
         <div class="relative flex-1 h-full">
-          <!-- Preload indicators -->
-          <div id="preload-cash" class="preload-indicator hidden">
-            <div class="flex items-center gap-2 text-sm text-gray-600">
-              <div class="animate-spin w-4 h-4 border-2 rounded-full border-pink-600 border-t-transparent"></div>
-              <span>Loading Cash Admin...</span>
-            </div>
-          </div>
-          <div id="preload-tournament" class="preload-indicator hidden">
-            <div class="flex items-center gap-2 text-sm text-gray-600">
-              <div class="animate-spin w-4 h-4 border-2 rounded-full border-pink-600 border-t-transparent"></div>
-              <span>Loading Tournament Admin...</span>
-            </div>
-          </div>
-          
-          <!-- Two iframes, both preloaded for faster switching -->
-          <iframe id="frame-cash" src="/admin" title="Cash Admin" class="absolute inset-0 w-full h-full border-0" loading="eager"></iframe>
-          <iframe id="frame-tournament" src="/admin-t" title="Tournament Admin" class="absolute inset-0 w-full h-full border-0 hidden" loading="eager"></iframe>
-          
-
-          <!-- Fallback: Cash Admin Embedded -->
-          <div id="fallback-cash" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
+          <!-- Cash Admin Panel (Standalone) -->
+          <div id="fallback-cash" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar">
             <div class="flex items-center justify-between mb-3">
-              <h2 class="text-lg font-bold text-gray-800">Cash Admin (Fallback)</h2>
+              <h2 class="text-lg font-bold text-gray-800">Cash Admin</h2>
               <button id="fb-refresh-cash" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm border"><i class="fa-solid fa-rotate mr-2"></i>Refresh</button>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -176,13 +160,95 @@
             </div>
           </div>
 
-          <!-- Fallback: Tournament Admin Embedded -->
+          <!-- Tournament Admin Panel (Standalone) -->
           <div id="fallback-tournament" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
             <div class="flex items-center justify-between mb-3">
-              <h2 class="text-lg font-bold text-gray-800">Tournament Admin (Fallback)</h2>
+              <h2 class="text-lg font-bold text-gray-800">Tournament Admin</h2>
               <button id="fb-refresh-t" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm border"><i class="fa-solid fa-rotate mr-2"></i>Refresh</button>
             </div>
             <div id="fb-posts" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+          </div>
+
+          <!-- User Search Panel -->
+          <div id="panel-user" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-bold text-gray-800">User Search</h2>
+            </div>
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 gap-2">
+                <div class="flex items-center gap-2">
+                  <input type="text" id="user-search-input" placeholder="UserID / ইমেইল / মোবাইল / নাম" class="flex-1 p-2 border border-gray-300 rounded-md focus:ring-pink-600 focus:border-pink-600">
+                  <select id="user-search-field" class="p-2 border border-gray-300 rounded-md">
+                    <option value="auto">Auto</option>
+                    <option value="uid">User ID</option>
+                    <option value="email">ইমেইল</option>
+                    <option value="mobile">মোবাইল</option>
+                    <option value="name">নাম</option>
+                  </select>
+                  <button id="user-search-btn" class="py-2 px-3 bg-pink-600 text-white rounded-md font-semibold">সার্চ</button>
+                </div>
+                <p class="text-xs text-gray-500">নোট: নাম দিয়ে সার্চ করলে শুরু অংশ মিলিয়ে ফলাফল দেখাবে। অন্যগুলোতে একদম সঠিক মিল প্রয়োজন।</p>
+              </div>
+              <div id="user-search-results" class="space-y-2"></div>
+            </div>
+          </div>
+
+          <!-- Admin Settings Panel -->
+          <div id="panel-settings" class="absolute inset-0 w-full h-full overflow-y-auto p-3 no-scrollbar hidden">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-bold text-gray-800">Admin Settings</h2>
+              <div class="flex items-center gap-2">
+                <button id="settings-refresh" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm border">Refresh</button>
+                <button id="settings-save" class="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded-md text-sm">Save</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="bg-white border rounded-lg p-3 space-y-2">
+                <h3 class="font-semibold text-gray-800">Charges</h3>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-xs text-gray-500">Send %</label>
+                    <input id="set-send-perc" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500">Send Fixed</label>
+                    <input id="set-send-fixed" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500">Transfer %</label>
+                    <input id="set-transfer-perc" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500">Transfer Fixed</label>
+                    <input id="set-transfer-fixed" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                </div>
+              </div>
+              <div class="bg-white border rounded-lg p-3 space-y-2">
+                <h3 class="font-semibold text-gray-800">Reserves</h3>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-xs text-gray-500">bKash Reserve</label>
+                    <input id="set-res-bkash" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500">Nagad Reserve</label>
+                    <input id="set-res-nagad" type="number" step="0.01" class="w-full p-2 border rounded" />
+                  </div>
+                </div>
+                <h3 class="font-semibold text-gray-800 mt-2">Payment Numbers</h3>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-xs text-gray-500">bKash Number</label>
+                    <input id="set-pay-bkash" type="text" class="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500">Nagad Number</label>
+                    <input id="set-pay-nagad" type="text" class="w-full p-2 border rounded" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -234,12 +300,10 @@
     const loading = document.getElementById('loading');
     const logoutBtn = document.getElementById('logout-btn');
     const adminNameEl = document.getElementById('admin-name');
-    const frameCash = document.getElementById('frame-cash');
-    const frameTournament = document.getElementById('frame-tournament');
-    const preloadCash = document.getElementById('preload-cash');
-    const preloadTournament = document.getElementById('preload-tournament');
     const tabCash = document.getElementById('tab-cash');
     const tabTournament = document.getElementById('tab-tournament');
+    const tabUser = document.getElementById('tab-user');
+    const tabSettings = document.getElementById('tab-settings');
     const tabBtnCash = document.getElementById('tabbtn-cash');
     const tabBtnTournament = document.getElementById('tabbtn-tournament');
     const reloadBtn = document.getElementById('reload-pane');
@@ -253,55 +317,52 @@
 
     function setTab(active) {
       const cashActive = active === 'cash';
-      
-      // Show preload indicator if iframe is not ready
-      if (cashActive && !frameCash.contentDocument) {
-        preloadCash.classList.remove('hidden');
-      } else if (!cashActive && !frameTournament.contentDocument) {
-        preloadTournament.classList.remove('hidden');
-      }
       // Sidebar state
       tabCash.classList.toggle('bg-pink-50', cashActive);
       tabCash.classList.toggle('text-pink-700', cashActive);
       tabCash.classList.toggle('border-pink-200', cashActive);
-      tabTournament.classList.toggle('bg-pink-50', !cashActive);
-      tabTournament.classList.toggle('text-pink-700', !cashActive);
-      tabTournament.classList.toggle('border-pink-200', !cashActive);
+      const tournamentActive = active === 'tournament';
+      tabTournament.classList.toggle('bg-pink-50', tournamentActive);
+      tabTournament.classList.toggle('text-pink-700', tournamentActive);
+      tabTournament.classList.toggle('border-pink-200', tournamentActive);
+      const userActive = active === 'user';
+      tabUser.classList.toggle('bg-pink-50', userActive);
+      tabUser.classList.toggle('text-pink-700', userActive);
+      tabUser.classList.toggle('border-pink-200', userActive);
+      const settingsActive = active === 'settings';
+      tabSettings.classList.toggle('bg-pink-50', settingsActive);
+      tabSettings.classList.toggle('text-pink-700', settingsActive);
+      tabSettings.classList.toggle('border-pink-200', settingsActive);
       // Top tabs
       tabBtnCash.classList.toggle('bg-pink-600', cashActive);
       tabBtnCash.classList.toggle('text-white', cashActive);
       tabBtnCash.classList.toggle('text-gray-700', !cashActive);
       tabBtnCash.classList.toggle('hover:bg-gray-100', !cashActive);
-      tabBtnTournament.classList.toggle('bg-pink-600', !cashActive);
-      tabBtnTournament.classList.toggle('text-white', !cashActive);
-      tabBtnTournament.classList.toggle('text-gray-700', cashActive);
-      tabBtnTournament.classList.toggle('hover:bg-gray-100', cashActive);
-      // Frames
-      frameCash.classList.toggle('hidden', !cashActive);
-      frameTournament.classList.toggle('hidden', cashActive);
-      // Both iframes are now preloaded, no need to set src dynamically
-      statusText.textContent = cashActive ? 'Cash Admin active' : 'Tournament Admin active';
-      
-      // Hide preload indicators when switching
-      setTimeout(() => {
-        preloadCash.classList.add('hidden');
-        preloadTournament.classList.add('hidden');
-      }, 1000);
+      tabBtnTournament.classList.toggle('bg-pink-600', tournamentActive);
+      tabBtnTournament.classList.toggle('text-white', tournamentActive);
+      tabBtnTournament.classList.toggle('text-gray-700', !tournamentActive);
+      tabBtnTournament.classList.toggle('hover:bg-gray-100', !tournamentActive);
+      // Panels
+      document.getElementById('fallback-cash').classList.toggle('hidden', !cashActive);
+      document.getElementById('fallback-tournament').classList.toggle('hidden', !tournamentActive);
+      document.getElementById('panel-user').classList.toggle('hidden', !userActive);
+      document.getElementById('panel-settings').classList.toggle('hidden', !settingsActive);
+      statusText.textContent = cashActive ? 'Cash Admin active' : tournamentActive ? 'Tournament Admin active' : userActive ? 'User Search active' : 'Admin Settings active';
     }
 
     function reloadCurrent() {
-      const activeIsCash = !frameCash.classList.contains('hidden');
-      (activeIsCash ? frameCash : frameTournament).contentWindow.location.reload();
+      const activeIsCash = !document.getElementById('fallback-cash').classList.contains('hidden');
+      if (activeIsCash) loadCashFallback(); else loadTournamentFallback();
     }
 
     function openCurrentInNew() {
-      const activeIsCash = !frameCash.classList.contains('hidden');
-      const url = activeIsCash ? '/admin' : '/admin-t';
-      window.open(url, '_blank');
+      window.open(window.location.href, '_blank');
     }
 
     tabCash.addEventListener('click', () => setTab('cash'));
     tabTournament.addEventListener('click', () => setTab('tournament'));
+    tabUser.addEventListener('click', () => setTab('user'));
+    tabSettings.addEventListener('click', () => setTab('settings'));
     tabBtnCash.addEventListener('click', () => setTab('cash'));
     tabBtnTournament.addEventListener('click', () => setTab('tournament'));
     reloadBtn.addEventListener('click', reloadCurrent);
@@ -329,37 +390,17 @@
     }
     function copyText(text) { navigator.clipboard.writeText(text).catch(() => {}); }
 
-    function isCashIframeActive() { return !frameCash.classList.contains('hidden'); }
-    function tryClickInCashFrame(tabId) {
-      try {
-        const docu = frameCash?.contentWindow?.document;
-        const el = docu && docu.getElementById(tabId);
-        if (el) { el.click(); return true; }
-      } catch (_) { /* cross-origin or not ready */ }
-      return false;
-    }
+    function isCashPanelActive() { return !document.getElementById('fallback-cash').classList.contains('hidden'); }
     function scrollInto(el) { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
     // Cash Shortcuts handlers
     function handleShortcut(type) {
       setTab('cash');
-      const iframeOk = isCashIframeActive();
-      if (iframeOk) {
-        const map = {
-          add: 'add-money-tab',
-          transfer: 'transfer-money-tab',
-          settings: 'charge-settings-tab',
-          user: 'user-search-tab'
-        };
-        const clicked = tryClickInCashFrame(map[type]);
-        if (!clicked) statusText.textContent = 'Panel loading… try again';
-      } else {
-        // Fallback: scroll to sections or show info
-        if (type === 'add') scrollInto(document.getElementById('fb-list-add'));
-        else if (type === 'transfer') scrollInto(document.getElementById('fb-list-transfer'));
-        else if (type === 'settings') openModal('infoM', 'সেটিংস', '<div class="p-2">Fallback মোডে সেটিংস পাওয়া যাচ্ছে না।</div>');
-        else if (type === 'user') openModal('infoM', 'ব্যবহারকারী সার্চ', '<div class="p-2">Fallback মোডে ব্যবহারকারী সার্চ পাওয়া যাচ্ছে না।</div>');
-      }
+      // Scroll to sections or show info
+      if (type === 'add') scrollInto(document.getElementById('fb-list-add'));
+      else if (type === 'transfer') scrollInto(document.getElementById('fb-list-transfer'));
+      else if (type === 'settings') openModal('infoM', 'সেটিংস', '<div class="p-2">এই ভিউতে সেটিংস কনফিগ সংযুক্ত করা হয়নি।</div>');
+      else if (type === 'user') openModal('infoM', 'ব্যবহারকারী সার্চ', '<div class="p-2">এই ভিউতে ব্যবহারকারী সার্চ সংযুক্ত করা হয়নি।</div>');
     }
 
     if (csAdd) csAdd.addEventListener('click', () => handleShortcut('add'));
@@ -388,21 +429,7 @@
       unsubTransferPending = onSnapshot(query(transferCol, where('status','==','pending')), (snap) => setBadge(badgeTransfer, snap.size));
     }
     function unsubscribeSidebarBadges(){ try { if (unsubAddPending) unsubAddPending(); } catch {}; try { if (unsubTransferPending) unsubTransferPending(); } catch {}; }
-    async function checkRouteAvailable(path) {
-      try {
-        const res = await fetch(path, { method: 'HEAD' });
-        return res.ok;
-      } catch (_) { return false; }
-    }
-
-    function showCashIframe(show) {
-      frameCash.classList.toggle('hidden', !show);
-      document.getElementById('fallback-cash').classList.toggle('hidden', show);
-    }
-    function showTournamentIframe(show) {
-      frameTournament.classList.toggle('hidden', !show);
-      document.getElementById('fallback-tournament').classList.toggle('hidden', show);
-    }
+    // Route availability checks and iframe toggles removed — standalone panels are always used
 
     // Cash fallback: load pending add money and transfers
     async function loadCashFallback() {
@@ -532,86 +559,251 @@
       }
     }
 
-    // Enhanced iframe load handlers
-    frameCash.addEventListener('load', () => {
-      preloadCash.classList.add('hidden');
-      console.log('Cash admin loaded');
-    });
-    
-    frameTournament.addEventListener('load', () => {
-      preloadTournament.classList.add('hidden');
-      console.log('Tournament admin loaded');
-    });
-    
-    // Advanced resource preloader
-    function preloadCriticalResources() {
-      const resources = [
-        { url: '/admin', as: 'document' },
-        { url: '/admin-t', as: 'document' },
-        { url: 'https://cdn.tailwindcss.com', as: 'script' },
-        { url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css', as: 'style' }
-      ];
-      
-      resources.forEach(resource => {
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = resource.url;
-        if (resource.as) link.as = resource.as;
-        if (resource.url.includes('https://')) link.crossOrigin = 'anonymous';
-        document.head.appendChild(link);
+    // ---------- User Search panel ----------
+    function initUserSearchPanel() {
+      const input = document.getElementById('user-search-input');
+      const btn = document.getElementById('user-search-btn');
+      const fieldSel = document.getElementById('user-search-field');
+      const resultsEl = document.getElementById('user-search-results');
+      if (!input || !btn || !fieldSel || !resultsEl) return;
+      const doSearch = async () => {
+        const termRaw = (input.value || '').trim();
+        resultsEl.innerHTML = '<div class="text-center p-4 text-gray-500">সার্চ হচ্ছে...</div>';
+        if (!termRaw) { resultsEl.innerHTML = '<div class="text-center p-4 text-gray-500">অনুগ্রহ করে সার্চ টেক্সট লিখুন।</div>'; return; }
+        try {
+          let users = [];
+          const usersCol = collection(db, `artifacts/${appId}/users`);
+          const addUserDoc = (id, data) => { users.push({ id, ...data }); };
+          const autoDetect = () => {
+            if (termRaw.includes('@')) return 'email';
+            if (/^\d{10,15}$/.test(termRaw)) return 'mobile';
+            if (/^[A-Za-z0-9_-]{20,}$/.test(termRaw)) return 'uid';
+            return 'name';
+          };
+          const field = fieldSel.value;
+          const mode = field === 'auto' ? autoDetect() : field;
+          if (mode === 'uid') {
+            const snap = await getDoc(doc(db, `artifacts/${appId}/users/${termRaw}`));
+            if (snap.exists()) addUserDoc(snap.id, snap.data());
+          } else if (mode === 'email') {
+            const qy = query(usersCol, where('email', '==', termRaw));
+            const snap = await getDocs(qy);
+            snap.forEach(d => addUserDoc(d.id, d.data()));
+          } else if (mode === 'mobile') {
+            const qy = query(usersCol, where('mobile', '==', termRaw));
+            const snap = await getDocs(qy);
+            snap.forEach(d => addUserDoc(d.id, d.data()));
+          } else if (mode === 'name') {
+            const start = termRaw;
+            const end = termRaw + '\uf8ff';
+            try {
+              const qy = query(usersCol, orderBy('fullName'), startAt(start), endAt(end), limit(25));
+              const snap = await getDocs(qy);
+              snap.forEach(d => addUserDoc(d.id, d.data()));
+            } catch (e) {
+              const qy2 = query(usersCol, where('fullName', '==', termRaw));
+              const snap2 = await getDocs(qy2);
+              snap2.forEach(d => addUserDoc(d.id, d.data()));
+            }
+          }
+          resultsEl.innerHTML = '';
+          if (users.length === 0) { resultsEl.innerHTML = '<div class="text-center p-4 text-gray-500">কোনো ফলাফল পাওয়া যায়নি।</div>'; return; }
+          users.forEach(u => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow-sm';
+            const left = document.createElement('div');
+            left.className = 'min-w-0';
+            left.innerHTML = `
+              <p class="font-semibold text-gray-800 truncate cursor-pointer hover:underline" title="প্রোফাইল দেখুন">${u.fullName || 'Unknown'}</p>
+              <p class="text-xs text-gray-500">মোবাইল: ${u.mobile || 'N/A'}</p>
+              <p class="text-[10px] text-gray-400 font-mono truncate">UID: ${u.id}</p>`;
+            const right = document.createElement('div');
+            right.className = 'text-right';
+            right.innerHTML = `
+              <p class="text-sm font-bold text-gray-800">৳ ${(u.balance || 0).toFixed(2)}</p>
+              <button class="mt-1 py-1 px-2 text-xs bg-pink-600 text-white rounded" data-uid="${u.id}">প্রোফাইল</button>`;
+            left.querySelector('p.font-semibold').addEventListener('click', (e) => { e.stopPropagation(); showUserProfileModal(u.id); });
+            right.querySelector('button').addEventListener('click', (e) => { e.stopPropagation(); showUserProfileModal(u.id); });
+            row.append(left, right);
+            resultsEl.appendChild(row);
+          });
+        } catch (err) {
+          console.error('User search failed:', err);
+          resultsEl.innerHTML = '<div class="text-center p-4 text-red-500">সার্চ করতে সমস্যা হয়েছে।</div>';
+        }
+      };
+      btn.addEventListener('click', doSearch);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    }
+
+    // ---------- Profile modal + balance adjust ----------
+    async function adjustUserBalance(userId, amount, isCredit, note) {
+      const userRef = doc(db, `artifacts/${appId}/users/${userId}`);
+      const delta = isCredit ? amount : -amount;
+      await updateDoc(userRef, { balance: increment(delta) });
+      const txRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+      const transactionId = (function(){ const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; let r=''; for(let i=0;i<9;i++){ r+=chars.charAt(Math.floor(Math.random()*chars.length)); } return r; })();
+      await addDoc(txRef, { type: 'admin_adjust', status: 'success', amount: delta, description: `${isCredit ? 'Admin Credit' : 'Admin Debit'}${note ? ' - ' + note : ''}`, transactionId, timestamp: serverTimestamp() });
+    }
+
+    async function showUserProfileModal(userId) {
+      try {
+        const userDocRef = doc(db, `artifacts/${appId}/users/${userId}`);
+        const userDoc = await getDoc(userDocRef);
+        if (!userDoc.exists()) { openModal('userProfile', 'Error', '<div class="text-red-600">ইউজার পাওয়া যায়নি</div>'); return; }
+        const user = userDoc.data();
+        const txColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+        const txSnap = await getDocs(txColRef);
+        const txs = txSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        txs.sort((a,b)=>{ const ta=a.timestamp&&a.timestamp.toDate? a.timestamp.toDate().getTime():0; const tb=b.timestamp&&b.timestamp.toDate? b.timestamp.toDate().getTime():0; return tb-ta; });
+        let listHtml = '';
+        if (txs.length===0) { listHtml = '<p class="text-sm text-gray-500">কোনো ট্রানজেকশন নেই।</p>'; }
+        else {
+          listHtml = txs.map(tx => {
+            let statusText='সফল', statusClass='text-green-600';
+            if (tx.status==='pending') { statusText='অপেক্ষমাণ'; statusClass='text-orange-500'; }
+            else if (tx.status==='rejected') { statusText='ব্যর্থ'; statusClass='text-red-600'; }
+            const date = tx.timestamp && tx.timestamp.toDate ? tx.timestamp.toDate() : new Date();
+            const time = date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+            const dateStr = date.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
+            const amountVal = typeof tx.amount==='number'? Math.abs(tx.amount).toFixed(2):'0.00';
+            let prefix = (tx.amount||0) >= 0 ? '+ ৳' : '- ৳';
+            let color = (tx.amount||0) >= 0 ? 'text-green-600' : 'text-red-600';
+            const trxId = tx.transactionId || tx.txId || tx.reference || tx.id || 'N/A';
+            return `
+              <div class="flex items-center p-3 bg-white rounded-lg shadow-sm">
+                <div class="flex-grow">
+                  <p class="font-semibold text-gray-800">${tx.type || 'লেনদেন'}</p>
+                  <p class="text-xs text-gray-500">TrxID: ${trxId}</p>
+                  <p class="text-xs font-semibold ${statusClass}">${statusText}</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-bold ${color}">${prefix}${amountVal}</p>
+                  <p class="text-xs text-gray-400">${time} ${dateStr}</p>
+                </div>
+              </div>`;
+          }).join('');
+        }
+        const body = `
+          <div class="space-y-3">
+            <div class="bg-gray-50 rounded-lg p-3">
+              <p class="text-sm text-gray-700"><span class="font-semibold">নাম:</span> ${user.fullName || 'N/A'}</p>
+              <p class="text-sm text-gray-700"><span class="font-semibold">মোবাইল:</span> ${user.mobile || 'N/A'}</p>
+              <p class="text-sm text-gray-700"><span class="font-semibold">ইউজার আইডি:</span> <span class="font-mono">${userId}</span></p>
+              <p class="text-sm text-gray-700 flex items-center gap-2">
+                <span class="font-semibold">ব্যালেন্স:</span>
+                <span id="profile-balance-value">৳ ${(user.balance || 0).toFixed(2)}</span>
+              </p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border">
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-semibold text-gray-800">ব্যালেন্স এডজাস্ট (অ্যাড/ডেবিট)</h4>
+              </div>
+              <div class="grid grid-cols-1 gap-2">
+                <div class="flex items-center gap-2">
+                  <select id="adj-type" class="px-2 py-1 border rounded-md text-sm">
+                    <option value="credit">ক্রেডিট (+)</option>
+                    <option value="debit">ডেবিট (-)</option>
+                  </select>
+                  <input id="adj-amount" type="number" step="0.01" min="0" placeholder="পরিমাণ" class="flex-1 px-2 py-1 border rounded-md text-sm" />
+                </div>
+                <input id="adj-note" type="text" placeholder="নোট (ঐচ্ছিক)" class="px-2 py-1 border rounded-md text-sm" />
+                <button id="adj-submit" class="px-3 py-2 bg-pink-600 text-white rounded-md text-sm">আপডেট করুন</button>
+                <p class="text-[12px] text-gray-500">এই এডজাস্টমেন্টটি ট্রানজেকশন হিস্টরিতে "admin_adjust" হিসেবে সংরক্ষণ হবে।</p>
+              </div>
+            </div>
+            <h4 class="text-md font-semibold text-gray-800">সকল ট্রানজেকশন</h4>
+            <div class="max-h-96 overflow-y-auto space-y-2">${listHtml}</div>
+          </div>`;
+        openModal('userProfile', 'প্রোফাইল ও স্টেটমেন্ট', body);
+        setTimeout(() => {
+          const adjBtn = document.getElementById('adj-submit');
+          if (adjBtn) {
+            adjBtn.addEventListener('click', async () => {
+              const type = (document.getElementById('adj-type')).value;
+              const amtStr = (document.getElementById('adj-amount')).value;
+              const note = (document.getElementById('adj-note')).value?.trim() || '';
+              const amount = Number(amtStr);
+              if (!amtStr || isNaN(amount) || amount <= 0) { return; }
+              try {
+                await adjustUserBalance(userId, amount, type === 'credit', note);
+                const balValueEl = document.getElementById('profile-balance-value');
+                const cur = Number((user.balance || 0));
+                const delta = type === 'credit' ? amount : -amount;
+                const next = (cur + delta).toFixed(2);
+                if (balValueEl) balValueEl.textContent = `৳ ${next}`;
+                user.balance = Number(next);
+              } catch (e) {
+                console.error(e);
+              }
+            });
+          }
+        }, 0);
+      } catch (e) {
+        console.error('Failed to load user profile:', e);
+        openModal('userProfile', 'Error', '<div class="text-red-600">ইউজার প্রোফাইল লোড করতে সমস্যা হয়েছে।</div>');
+      }
+    }
+
+    // ---------- Admin Settings panel ----------
+    async function loadSettings() {
+      const ref = doc(db, `artifacts/${appId}/admin_config/settings`);
+      const snap = await getDoc(ref);
+      const data = snap.exists() ? snap.data() : {};
+      const val = (p, d) => p !== undefined ? p : d;
+      (document.getElementById('set-send-perc')).value = val(data?.charges?.send?.percentage, 0);
+      (document.getElementById('set-send-fixed')).value = val(data?.charges?.send?.fixed, 0);
+      (document.getElementById('set-transfer-perc')).value = val(data?.charges?.transfer?.percentage, 0);
+      (document.getElementById('set-transfer-fixed')).value = val(data?.charges?.transfer?.fixed, 0);
+      (document.getElementById('set-res-bkash')).value = val(data?.reserve?.bkash, 0);
+      (document.getElementById('set-res-nagad')).value = val(data?.reserve?.nagad, 0);
+      (document.getElementById('set-pay-bkash')).value = val(data?.paymentNumbers?.bkash, '');
+      (document.getElementById('set-pay-nagad')).value = val(data?.paymentNumbers?.nagad, '');
+    }
+
+    async function saveSettings() {
+      const ref = doc(db, `artifacts/${appId}/admin_config/settings`);
+      const payload = {
+        charges: {
+          send: {
+            percentage: Number((document.getElementById('set-send-perc')).value) || 0,
+            fixed: Number((document.getElementById('set-send-fixed')).value) || 0,
+          },
+          transfer: {
+            percentage: Number((document.getElementById('set-transfer-perc')).value) || 0,
+            fixed: Number((document.getElementById('set-transfer-fixed')).value) || 0,
+          },
+        },
+        reserve: {
+          bkash: Number((document.getElementById('set-res-bkash')).value) || 0,
+          nagad: Number((document.getElementById('set-res-nagad')).value) || 0,
+        },
+        paymentNumbers: {
+          bkash: String((document.getElementById('set-pay-bkash')).value || ''),
+          nagad: String((document.getElementById('set-pay-nagad')).value || ''),
+        },
+      };
+      await updateDoc(ref, payload).catch(async (e)=>{
+        // If doc doesn't exist, set it
+        await setDoc(ref, payload, { merge: true });
       });
     }
-    
-    // Preload both iframes immediately
-    function preloadIframes() {
-      // Show indicators
-      preloadCash.classList.remove('hidden');
-      preloadTournament.classList.remove('hidden');
-      
-      // Preload critical resources first
-      preloadCriticalResources();
-      
-      // Add error handling for iframe loading
-      const handleIframeError = (iframe, fallbackId) => {
-        iframe.addEventListener('error', () => {
-          console.warn(`Failed to load ${iframe.src}, switching to fallback`);
-          iframe.classList.add('hidden');
-          document.getElementById(fallbackId).classList.remove('hidden');
-        });
-      };
-      
-      handleIframeError(frameCash, 'fallback-cash');
-      handleIframeError(frameTournament, 'fallback-tournament');
-      
-      // Force load both iframes with timeout
-      setTimeout(() => {
-        if (frameCash.src && frameCash.src !== 'about:blank') {
-          try {
-            frameCash.contentWindow.location.reload();
-          } catch (e) {
-            console.warn('Cash iframe reload failed:', e);
-          }
-        }
-        if (frameTournament.src && frameTournament.src !== 'about:blank') {
-          try {
-            frameTournament.contentWindow.location.reload();
-          } catch (e) {
-            console.warn('Tournament iframe reload failed:', e);
-          }
-        }
-      }, 100);
-    }
-    
-    // Availability check and fallback toggling
-    async function initPanels() {
-      const cashOk = await checkRouteAvailable('/admin');
-      const tOk = await checkRouteAvailable('/admin-t');
-      showCashIframe(cashOk);
-      if (!cashOk) await loadCashFallback();
-      // Tournament iframe is already preloaded with /admin-t
-      showTournamentIframe(tOk);
-      if (!tOk) await loadTournamentFallback();
 
+    function initSettingsPanel() {
+      const btnR = document.getElementById('settings-refresh');
+      const btnS = document.getElementById('settings-save');
+      if (btnR) btnR.addEventListener('click', () => loadSettings());
+      if (btnS) btnS.addEventListener('click', async () => { await saveSettings(); });
+    }
+
+    // Initialize panels (standalone)
+    async function initPanels() {
+      // Always use standalone renderers
+      await loadCashFallback();
+      await loadTournamentFallback();
+      initUserSearchPanel();
+      await loadSettings();
+      initSettingsPanel();
       // Wire refresh buttons
       const r1 = document.getElementById('fb-refresh-cash');
       if (r1) r1.addEventListener('click', loadCashFallback);
@@ -629,7 +821,6 @@
         if (!isAdmin) { window.location.href = '/'; return; }
         setTab('cash');
         subscribeSidebarBadges();
-        preloadIframes(); // Preload both iframes immediately
         await initPanels();
         
         // Final optimization: warm up both panels after initial load
